@@ -55,6 +55,17 @@ def count_tokens(text, encoding_name="cl100k_base"):
     return len(encoding.encode(text))
 
 
+def add_sentence_newlines(text):
+    """Add newline after each sentence for better readability"""
+    # Clean up extra whitespace (but preserve existing newlines)
+    text = re.sub(r'[ \t]+', ' ', text).strip()
+    
+    # Add newline after each sentence (. ! ? followed by space)
+    text = re.sub(r'([.!?])\s+', r'\1\n', text)
+    
+    return text
+
+
 def clean_gsm8k_answer(text):
     """Clean up GSM8K answer format:
     1. Remove <<...>> calculation annotations
@@ -356,7 +367,7 @@ def main(num_samples=None, start_idx=0, num_workers=None):
     all_samples = []
     
     for idx, sample in enumerate(dataset):
-        prompt_text = sample.get("question", "")
+        prompt_text = add_sentence_newlines(sample.get("question", ""))
         response_text = clean_gsm8k_answer(sample.get("answer", ""))
         
         # Skip if prompt or response is too short

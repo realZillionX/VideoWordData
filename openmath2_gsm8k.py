@@ -66,6 +66,17 @@ def count_tokens(text, encoding_name="cl100k_base"):
     return len(encoding.encode(text))
 
 
+def add_sentence_newlines(text):
+    """Add newline after each sentence for better readability"""
+    # Clean up extra whitespace (but preserve existing newlines)
+    text = re.sub(r'[ \t]+', ' ', text).strip()
+    
+    # Add newline after each sentence (. ! ? followed by space)
+    text = re.sub(r'([.!?])\s+', r'\1\n', text)
+    
+    return text
+
+
 def clean_answer(text):
     """Clean up answer format for OpenMath-2-GSM8K:
     1. Remove \\boxed{} wrapper but keep the content inside
@@ -374,7 +385,7 @@ def main(num_samples=None, start_idx=0, num_workers=None):
             role = msg.get("role", "")
             content = msg.get("content", "")
             if role == "user":
-                prompt_text = content
+                prompt_text = add_sentence_newlines(content)
             elif role == "assistant":
                 response_text = clean_answer(content)
         

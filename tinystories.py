@@ -109,7 +109,8 @@ def split_story(text, num_intro_sentences=NUM_INTRO_SENTENCES):
     intro_text = ' '.join(intro_sentences)
     continuation_text = ' '.join(continuation_sentences)
     
-    # Add sentence newlines to continuation for better readability
+    # Add sentence newlines to both intro and continuation for better readability
+    intro_text = add_sentence_newlines(intro_text)
     continuation_text = add_sentence_newlines(continuation_text)
     
     return intro_text, continuation_text
