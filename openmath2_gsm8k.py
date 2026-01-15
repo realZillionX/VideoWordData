@@ -54,7 +54,7 @@ RESPONSE_COLOR = (0, 0, 0)
 FONT_PATH = PROJECT_ROOT / "fonts" / "DejaVuSansMono.ttf"
 PROMPT_FONT_SIZE = 28
 RESPONSE_FONT_SIZE = 28
-CHARS_PER_LINE = 35  # Adjusted for larger font
+CHARS_PER_LINE = 38  # Adjusted for monospace font
 
 # Ensure directories exist
 VIDEO_DIR.mkdir(parents=True, exist_ok=True)
