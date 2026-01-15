@@ -55,6 +55,28 @@ def count_tokens(text, encoding_name="cl100k_base"):
     return len(encoding.encode(text))
 
 
+def clean_gsm8k_answer(text):
+    """Clean up GSM8K answer format:
+    1. Remove <<...>> calculation annotations
+    2. Replace #### with 'So the answer is:'
+    3. Add period at the end if missing
+    """
+    # Remove <<...>> patterns (calculation annotations)
+    text = re.sub(r'<<[^>]*>>', '', text)
+    
+    # Replace #### with 'So the answer is:'
+    text = re.sub(r'####\s*', 'So the answer is: ', text)
+    
+    # Clean up extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # Add period at the end if missing
+    if text and text[-1] not in '.!?':
+        text += '.'
+    
+    return text
+
+
 def create_video_with_gradual_text(prompt_text, response_text, output_path):
     """Video with true page-turning: accumulate content on each page until full, then turn page - 193 frames, 10 seconds, 360P"""
     
@@ -331,7 +353,7 @@ def main(num_samples=None, start_idx=0, num_workers=None):
     
     for idx, sample in enumerate(dataset):
         prompt_text = sample.get("question", "")
-        response_text = sample.get("answer", "")
+        response_text = clean_gsm8k_answer(sample.get("answer", ""))
         
         # Skip if prompt or response is too short
         if len(prompt_text.strip()) < 5 or len(response_text.strip()) < 5:
