@@ -39,8 +39,8 @@ BACKGROUND_COLOR = (255, 255, 255)
 PROMPT_COLOR = (0, 0, 0)
 RESPONSE_COLOR = (0, 0, 0)
 
-# Font settings - Larger fonts for better readability
-FONT_PATH = PROJECT_ROOT / "fonts" / "DejaVuSans.ttf"
+# Font settings - Monospace font for consistent character width
+FONT_PATH = PROJECT_ROOT / "fonts" / "DejaVuSansMono.ttf"
 PROMPT_FONT_SIZE = 28
 RESPONSE_FONT_SIZE = 28
 CHARS_PER_LINE = 35  # Adjusted for larger font
