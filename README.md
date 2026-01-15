@@ -10,9 +10,8 @@ VideoWordData/
 │   ├── gsm8k.py              # GSM8K 数学题 (英文)
 │   ├── openmath2_gsm8k.py    # OpenMath-2-GSM8K (英文)
 │   ├── belle_school_math.py  # BELLE 中文数学题
-│   └── gsm8k_chinese.py      # GSM8K 中文版
-├── rendering/           # 渲染任务（prompt含答案，训练渲染能力）
-│   └── tinystories.py        # TinyStories 故事
+│   ├── gsm8k_chinese.py      # GSM8K 中文版
+│   └── tinystories.py        # TinyStories 故事续写
 ├── common/              # 共享代码
 │   └── video_utils.py        # 视频生成函数
 └── fonts/               # 字体文件
@@ -44,7 +43,7 @@ VideoWordData/
 
 ### 推理任务 (inference/)
 
-JSONL 的 prompt 字段只包含问题，不包含答案。用于训练模型的推理能力。
+JSONL 的 prompt 字段只包含问题/开头，不包含答案/续写。用于训练模型的推理能力。
 
 | 脚本 | 数据集 | 语言 | 数据量 |
 |------|--------|------|--------|
@@ -52,13 +51,6 @@ JSONL 的 prompt 字段只包含问题，不包含答案。用于训练模型的
 | `openmath2_gsm8k.py` | [ai2-adapt-dev/openmath-2-gsm8k](https://huggingface.co/datasets/ai2-adapt-dev/openmath-2-gsm8k) | 英文 | 大规模 |
 | `belle_school_math.py` | [BelleGroup/school_math_0.25M](https://huggingface.co/datasets/BelleGroup/school_math_0.25M) | 中文 | ~250K |
 | `gsm8k_chinese.py` | [swulling/gsm8k_chinese](https://huggingface.co/datasets/swulling/gsm8k_chinese) | 中文 | ~8.8K |
-
-### 渲染任务 (rendering/)
-
-JSONL 的 prompt 字段包含完整的问题和答案。用于训练模型的渲染能力。
-
-| 脚本 | 数据集 | 语言 | 数据量 |
-|------|--------|------|--------|
 | `tinystories.py` | [roneneldan/TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) | 英文 | ~2.1M |
 
 ## 使用方法
