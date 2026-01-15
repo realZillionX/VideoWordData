@@ -53,9 +53,9 @@ RESPONSE_COLOR = (0, 0, 0)
 
 # Font settings - Larger fonts for better readability
 FONT_PATH = PROJECT_ROOT / "fonts" / "DejaVuSans.ttf"
-PROMPT_FONT_SIZE = 20
-RESPONSE_FONT_SIZE = 20
-CHARS_PER_LINE = 50  # Adjusted for larger font
+PROMPT_FONT_SIZE = 28
+RESPONSE_FONT_SIZE = 28
+CHARS_PER_LINE = 35  # Adjusted for larger font
 
 # How many sentences to show above the separator
 NUM_INTRO_SENTENCES = 2
@@ -68,6 +68,17 @@ def count_tokens(text, encoding_name="cl100k_base"):
     """Count tokens in text using tiktoken"""
     encoding = tiktoken.get_encoding(encoding_name)
     return len(encoding.encode(text))
+
+
+def add_sentence_newlines(text):
+    """Add newline after each sentence for better readability"""
+    # Clean up extra whitespace (but preserve existing newlines)
+    text = re.sub(r'[ \t]+', ' ', text).strip()
+    
+    # Add newline after each sentence (. ! ? followed by space)
+    text = re.sub(r'([.!?])\s+', r'\1\n', text)
+    
+    return text
 
 
 def split_into_sentences(text):
@@ -97,6 +108,9 @@ def split_story(text, num_intro_sentences=NUM_INTRO_SENTENCES):
     
     intro_text = ' '.join(intro_sentences)
     continuation_text = ' '.join(continuation_sentences)
+    
+    # Add sentence newlines to continuation for better readability
+    continuation_text = add_sentence_newlines(continuation_text)
     
     return intro_text, continuation_text
 

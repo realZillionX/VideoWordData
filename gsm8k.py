@@ -41,9 +41,9 @@ RESPONSE_COLOR = (0, 0, 0)
 
 # Font settings - Larger fonts for better readability
 FONT_PATH = PROJECT_ROOT / "fonts" / "DejaVuSans.ttf"
-PROMPT_FONT_SIZE = 24
-RESPONSE_FONT_SIZE = 24
-CHARS_PER_LINE = 40  # Adjusted for larger font
+PROMPT_FONT_SIZE = 28
+RESPONSE_FONT_SIZE = 28
+CHARS_PER_LINE = 35  # Adjusted for larger font
 
 # Ensure directories exist
 VIDEO_DIR.mkdir(parents=True, exist_ok=True)

@@ -52,9 +52,9 @@ RESPONSE_COLOR = (0, 0, 0)
 
 # Font settings - Larger fonts for better readability
 FONT_PATH = PROJECT_ROOT / "fonts" / "DejaVuSans.ttf"
-PROMPT_FONT_SIZE = 20
-RESPONSE_FONT_SIZE = 20
-CHARS_PER_LINE = 50  # Adjusted for larger font
+PROMPT_FONT_SIZE = 28
+RESPONSE_FONT_SIZE = 28
+CHARS_PER_LINE = 35  # Adjusted for larger font
 
 # Ensure directories exist
 VIDEO_DIR.mkdir(parents=True, exist_ok=True)
@@ -64,6 +64,21 @@ def count_tokens(text, encoding_name="cl100k_base"):
     """Count tokens in text using tiktoken"""
     encoding = tiktoken.get_encoding(encoding_name)
     return len(encoding.encode(text))
+
+
+def clean_answer(text):
+    """Clean up answer format and add newline after each sentence"""
+    # Clean up extra whitespace (but preserve existing newlines)
+    text = re.sub(r'[ \t]+', ' ', text).strip()
+    
+    # Add period at the end if missing
+    if text and text[-1] not in '.!?':
+        text += '.'
+    
+    # Add newline after each sentence (. ! ? followed by space)
+    text = re.sub(r'([.!?])\s+', r'\1\n', text)
+    
+    return text
 
 
 def create_video_with_gradual_text(prompt_text, response_text, output_path):
@@ -338,7 +353,7 @@ def main(num_samples=None, start_idx=0, num_workers=None):
             if role == "user":
                 prompt_text = content
             elif role == "assistant":
-                response_text = content
+                response_text = clean_answer(content)
         
         # Skip if prompt or response is too short
         if len(prompt_text.strip()) < 5 or len(response_text.strip()) < 5:
