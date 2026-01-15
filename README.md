@@ -12,6 +12,12 @@ VideoWordData/
 │   ├── belle_school_math.py  # BELLE 中文数学题
 │   ├── gsm8k_chinese.py      # GSM8K 中文版
 │   └── tinystories.py        # TinyStories 故事续写
+├── rendering/           # 渲染任务（prompt含答案，训练渲染能力）
+│   ├── gsm8k.py
+│   ├── openmath2_gsm8k.py
+│   ├── belle_school_math.py
+│   ├── gsm8k_chinese.py
+│   └── tinystories.py
 ├── common/              # 共享代码
 │   └── video_utils.py        # 视频生成函数
 └── fonts/               # 字体文件
@@ -41,10 +47,6 @@ VideoWordData/
 
 ## 支持的数据集
 
-### 推理任务 (inference/)
-
-JSONL 的 prompt 字段只包含问题/开头，不包含答案/续写。用于训练模型的推理能力。
-
 | 脚本 | 数据集 | 语言 | 数据量 |
 |------|--------|------|--------|
 | `gsm8k.py` | [gsm8k](https://huggingface.co/datasets/gsm8k) | 英文 | ~7.5K |
@@ -53,18 +55,25 @@ JSONL 的 prompt 字段只包含问题/开头，不包含答案/续写。用于�
 | `gsm8k_chinese.py` | [swulling/gsm8k_chinese](https://huggingface.co/datasets/swulling/gsm8k_chinese) | 中文 | ~8.8K |
 | `tinystories.py` | [roneneldan/TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) | 英文 | ~2.1M |
 
+## Inference vs Rendering
+
+| 类型 | 目录 | JSONL prompt 内容 | 用途 |
+|------|------|------------------|------|
+| **inference** | `inference/` | 只有问题，不含答案 | 训练推理能力 |
+| **rendering** | `rendering/` | 问题 + 答案都包含 | 训练渲染能力 |
+
+两种任务使用相同的数据集和视频，唯一区别是 JSONL 文件中 `prompt` 字段是否包含答案。
+
 ## 使用方法
 
 ```bash
-# 推理任务 - GSM8K
+# 推理任务
 python inference/gsm8k.py --num_samples 1000
-
-# 推理任务 - 中文数学
 python inference/belle_school_math.py --num_samples 1000
-python inference/gsm8k_chinese.py --num_samples 1000
 
-# 渲染任务 - TinyStories
-python rendering/tinystories.py --num_samples 1000
+# 渲染任务
+python rendering/gsm8k.py --num_samples 1000
+python rendering/belle_school_math.py --num_samples 1000
 
 # 指定起始索引（用于分布式处理）
 python inference/gsm8k.py --start_idx 5000 --num_samples 1000
@@ -75,29 +84,19 @@ python inference/gsm8k.py --num_workers 8
 
 ## 输出格式
 
-每个脚本会生成：
-1. **视频文件**: 保存在 `VIDEO_DIR` 目录下
-2. **JSONL 文件**: 包含视频元数据
-
-### Inference JSONL 格式（推理任务）
+### Inference JSONL（推理任务）
 ```json
 {
     "video_path": "/path/to/video.mp4",
-    "visual_description": "...",
-    "speech_description": "",
-    "audio_description": "...",
-    "prompt": "问题内容（不含答案）"
+    "prompt": "Question: ... (不含答案)"
 }
 ```
 
-### Rendering JSONL 格式（渲染任务）
+### Rendering JSONL（渲染任务）
 ```json
 {
     "video_path": "/path/to/video.mp4",
-    "visual_description": "...",
-    "speech_description": "",
-    "audio_description": "...",
-    "prompt": "问题和答案的完整内容"
+    "prompt": "Question: ... Answer: ... (包含答案)"
 }
 ```
 
@@ -109,4 +108,4 @@ pip install datasets opencv-python numpy pillow tqdm tiktoken
 
 ## 字体
 
-需要在 `fonts/` 目录下放置 `DejaVuSansMono.ttf` 字体文件。如果字体缺失，将使用系统默认字体。
+需要在 `fonts/` 目录下放置 `DejaVuSansMono.ttf` 字体文件。
