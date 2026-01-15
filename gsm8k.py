@@ -41,9 +41,9 @@ RESPONSE_COLOR = (0, 0, 0)
 
 # Font settings - Larger fonts for better readability
 FONT_PATH = PROJECT_ROOT / "fonts" / "DejaVuSans.ttf"
-PROMPT_FONT_SIZE = 20
-RESPONSE_FONT_SIZE = 20
-CHARS_PER_LINE = 50  # Adjusted for larger font
+PROMPT_FONT_SIZE = 24
+RESPONSE_FONT_SIZE = 24
+CHARS_PER_LINE = 40  # Adjusted for larger font
 
 # Ensure directories exist
 VIDEO_DIR.mkdir(parents=True, exist_ok=True)
@@ -60,6 +60,7 @@ def clean_gsm8k_answer(text):
     1. Remove <<...>> calculation annotations
     2. Replace #### with 'So the answer is:'
     3. Add period at the end if missing
+    4. Add newline after each sentence
     """
     # Remove <<...>> patterns (calculation annotations)
     text = re.sub(r'<<[^>]*>>', '', text)
@@ -67,12 +68,15 @@ def clean_gsm8k_answer(text):
     # Replace #### with 'So the answer is:'
     text = re.sub(r'####\s*', 'So the answer is: ', text)
     
-    # Clean up extra whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
+    # Clean up extra whitespace (but preserve existing newlines)
+    text = re.sub(r'[ \t]+', ' ', text).strip()
     
     # Add period at the end if missing
     if text and text[-1] not in '.!?':
         text += '.'
+    
+    # Add newline after each sentence (. ! ? followed by space)
+    text = re.sub(r'([.!?])\s+', r'\1\n', text)
     
     return text
 
