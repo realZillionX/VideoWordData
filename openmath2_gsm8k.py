@@ -67,7 +67,30 @@ def count_tokens(text, encoding_name="cl100k_base"):
 
 
 def clean_answer(text):
-    """Clean up answer format and add newline after each sentence"""
+    """Clean up answer format for OpenMath-2-GSM8K:
+    1. Remove \\boxed{} wrapper but keep the content inside
+    2. Add period at the end if missing
+    3. Add newline after each sentence
+    """
+    # Remove \boxed{} wrapper but keep the content inside
+    # Handles nested braces by matching balanced braces
+    while '\\boxed{' in text:
+        start = text.find('\\boxed{')
+        # Find matching closing brace
+        brace_count = 0
+        end = start + 7  # len('\\boxed{')
+        for i in range(start + 7, len(text)):
+            if text[i] == '{':
+                brace_count += 1
+            elif text[i] == '}':
+                if brace_count == 0:
+                    end = i
+                    break
+                brace_count -= 1
+        # Extract content and replace
+        content = text[start + 7:end]
+        text = text[:start] + content + text[end + 1:]
+    
     # Clean up extra whitespace (but preserve existing newlines)
     text = re.sub(r'[ \t]+', ' ', text).strip()
     
