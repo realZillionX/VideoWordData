@@ -105,6 +105,135 @@ python inference/gsm8k.py --base_dir /your/custom/path
 }
 ```
 
+## 快速开始
+
+### 第一步：下载数据集
+
+使用 `download_datasets.py` 脚本将数据集下载到本地，避免每次运行时重复下载。
+
+```bash
+# 下载所有数据集到默认目录
+python download_datasets.py
+
+# 下载到自定义目录
+python download_datasets.py --base_dir /your/custom/path
+
+# 只下载某个数据集
+python download_datasets.py --dataset gsm8k
+python download_datasets.py --dataset tinystories
+
+# 查看所有可用数据集
+python download_datasets.py --list
+
+# 强制重新下载（即使本地已存在）
+python download_datasets.py --force
+```
+
+**下载目录结构**：
+```
+/inspire/hdd/project/embodied-multimodality/public/
+├── gsm8k/dataset/           # GSM8K 数据
+├── openmath2_gsm8k/dataset/ # OpenMath-2-GSM8K 数据
+├── belle_school_math/dataset/ # BELLE 中文数学
+├── gsm8k_chinese/dataset/   # GSM8K 中文版
+└── tinystories/dataset/     # TinyStories 故事
+```
+
+### 第二步：生成视频
+
+下载完成后，运行脚本会自动从本地加载数据集：
+
+```bash
+# 单机运行
+python inference/gsm8k.py --num_samples 1000
+python rendering/tinystories.py --num_samples 5000
+```
+
+---
+
+## Slurm 集群使用
+
+提供两个脚本用于在 Slurm 集群上进行多节点并行处理。
+
+### 脚本说明
+
+| 脚本 | 用途 |
+|------|------|
+| `submit_jobs.sh` | 主控脚本，用于提交作业 |
+| `slurm_job.sh` | 单节点作业脚本，被 submit_jobs.sh 调用 |
+
+### 基本用法
+
+```bash
+# 提交所有数据集的所有任务（inference + rendering）
+./submit_jobs.sh
+
+# 只提交某个数据集
+./submit_jobs.sh gsm8k
+./submit_jobs.sh tinystories
+
+# 只提交某个数据集的某个任务类型
+./submit_jobs.sh gsm8k inference
+./submit_jobs.sh tinystories rendering
+
+# 提交所有数据集的 rendering 任务
+./submit_jobs.sh all rendering
+```
+
+### 预览和管理
+
+```bash
+# 预览命令（不实际提交）
+./submit_jobs.sh --dry-run
+./submit_jobs.sh --dry-run gsm8k
+
+# 查看作业状态
+./submit_jobs.sh --status
+
+# 取消所有作业
+./submit_jobs.sh --cancel
+```
+
+### 自定义配置
+
+通过环境变量自定义运行参数：
+
+```bash
+# 使用 40 个节点，每节点处理 20000 个样本
+NUM_NODES=40 SAMPLES_PER_NODE=20000 ./submit_jobs.sh tinystories
+
+# 使用不同的 Slurm 分区
+PARTITION=gpu ./submit_jobs.sh gsm8k
+
+# 使用 64 核 CPU
+CPUS_PER_NODE=64 ./submit_jobs.sh
+```
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `NUM_NODES` | 20 | 最大节点数 |
+| `CPUS_PER_NODE` | 120 | 每节点 CPU 数 |
+| `SAMPLES_PER_NODE` | 10000 | 每节点处理样本数 |
+| `PARTITION` | cpu | Slurm 分区名 |
+| `TIME_LIMIT` | 48:00:00 | 作业时间限制 |
+| `BASE_DIR` | `/inspire/.../textcentric` | 输出目录 |
+
+### 工作原理
+
+1. `submit_jobs.sh` 根据数据集大小自动计算需要多少节点
+2. 使用 `sbatch --array` 提交作业数组
+3. 每个节点处理数据集的不同分片（通过 `--start_idx` 区分）
+4. 所有节点并行工作，互不干扰
+
+**示例**：处理 250K 样本的 belle_school_math
+- 每节点 10000 样本 → 需要 25 个节点
+- 节点 0: `--start_idx 0`
+- 节点 1: `--start_idx 10000`
+- 节点 2: `--start_idx 20000`
+- ...
+
+---
+
 ## 依赖
 
 ```bash
