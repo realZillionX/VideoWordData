@@ -29,15 +29,15 @@ DATASET_CONFIGS = {
         "hf_config": None,
         "local_dir": "belle_school_math",
     },
-    "gsm8k_chinese": {
-        "hf_name": "swulling/gsm8k_chinese",
-        "hf_config": None,
-        "local_dir": "gsm8k_chinese",
-    },
     "tinystories": {
         "hf_name": "roneneldan/TinyStories",
         "hf_config": None,
         "local_dir": "tinystories",
+    },
+    "tinystories_chinese": {
+        "hf_name": "adam89/TinyStoriesChinese",
+        "hf_config": None,
+        "local_dir": "tinystories_chinese",
     },
 }
 
@@ -139,11 +139,11 @@ def load_belle_school_math(split="train", local_base=DEFAULT_LOCAL_BASE):
     return load_dataset_with_local_fallback("belle_school_math", split, local_base)
 
 
-def load_gsm8k_chinese(split="train", local_base=DEFAULT_LOCAL_BASE):
-    """Load GSM8K Chinese dataset"""
-    return load_dataset_with_local_fallback("gsm8k_chinese", split, local_base)
-
-
 def load_tinystories(split="train", local_base=DEFAULT_LOCAL_BASE):
     """Load TinyStories dataset"""
     return load_dataset_with_local_fallback("tinystories", split, local_base)
+
+
+def load_tinystories_chinese(split="train", local_base=DEFAULT_LOCAL_BASE):
+    """Load TinyStories Chinese dataset"""
+    return load_dataset_with_local_fallback("tinystories_chinese", split, local_base)

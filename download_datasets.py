@@ -39,17 +39,17 @@ DATASETS = {
         "local_dir": "belle_school_math",
         "description": "BELLE School Math (Chinese, ~250K samples)"
     },
-    "gsm8k_chinese": {
-        "name": "swulling/gsm8k_chinese",
-        "config": None,
-        "local_dir": "gsm8k_chinese",
-        "description": "GSM8K Chinese Translation (~8.8K samples)"
-    },
     "tinystories": {
         "name": "roneneldan/TinyStories",
         "config": None,
         "local_dir": "tinystories",
         "description": "TinyStories (English, ~2.1M samples)"
+    },
+    "tinystories_chinese": {
+        "name": "adam89/TinyStoriesChinese",
+        "config": None,
+        "local_dir": "tinystories_chinese",
+        "description": "TinyStories Chinese (Chinese, ~2.1M samples)"
     }
 }
 

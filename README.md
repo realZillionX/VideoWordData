@@ -10,18 +10,20 @@ VideoWordData/
 │   ├── gsm8k.py              # GSM8K 数学题 (英文)
 │   ├── openmath2_gsm8k.py    # OpenMath-2-GSM8K (英文)
 │   ├── belle_school_math.py  # BELLE 中文数学题
-│   ├── gsm8k_chinese.py      # GSM8K 中文版
-│   └── tinystories.py        # TinyStories 故事续写
+│   ├── tinystories.py        # TinyStories 故事续写 (英文)
+│   └── tinystories_chinese.py # TinyStories 中文版
 ├── rendering/           # 渲染任务（prompt含答案，训练渲染能力）
 │   ├── gsm8k.py
 │   ├── openmath2_gsm8k.py
 │   ├── belle_school_math.py
-│   ├── gsm8k_chinese.py
-│   └── tinystories.py
+│   ├── tinystories.py
+│   └── tinystories_chinese.py
 ├── common/              # 共享代码
-│   └── video_utils.py        # 视频生成函数
+│   ├── video_utils.py        # 视频生成函数
+│   └── dataset_utils.py      # 数据集加载工具
 └── fonts/               # 字体文件
-    └── DejaVuSansMono.ttf
+    ├── DejaVuSansMono.ttf         # 英文等宽字体
+    └── DroidSansFallbackFull.ttf  # 中文字体
 ```
 
 ## 视频特性
@@ -34,7 +36,7 @@ VideoWordData/
 | 帧率 | 19.3 FPS |
 | 背景色 | 白色 (#FFFFFF) |
 | 文字颜色 | 黑色 (#000000) |
-| 字体 | DejaVuSansMono, 28pt |
+| 字体 | DejaVuSansMono/DroidSansFallback, 28pt |
 | 编码格式 | MP4 (mp4v) |
 
 ## 渲染机制
@@ -52,8 +54,8 @@ VideoWordData/
 | `gsm8k.py` | [openai/gsm8k](https://huggingface.co/datasets/openai/gsm8k) | 英文 | ~7.5K |
 | `openmath2_gsm8k.py` | [ai2-adapt-dev/openmath-2-gsm8k](https://huggingface.co/datasets/ai2-adapt-dev/openmath-2-gsm8k) | 英文 | 大规模 |
 | `belle_school_math.py` | [BelleGroup/school_math_0.25M](https://huggingface.co/datasets/BelleGroup/school_math_0.25M) | 中文 | ~250K |
-| `gsm8k_chinese.py` | [swulling/gsm8k_chinese](https://huggingface.co/datasets/swulling/gsm8k_chinese) | 中文 | ~8.8K |
 | `tinystories.py` | [roneneldan/TinyStories](https://huggingface.co/datasets/roneneldan/TinyStories) | 英文 | ~2.1M |
+| `tinystories_chinese.py` | [adam89/TinyStoriesChinese](https://huggingface.co/datasets/adam89/TinyStoriesChinese) | 中文 | ~2.1M |
 
 ## Inference vs Rendering
 

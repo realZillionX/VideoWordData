@@ -40,6 +40,7 @@ from common.video_utils import (
     create_video_with_gradual_text,
     add_sentence_newlines,
     get_font_path,
+    get_chinese_font_path,
     VIDEO_DURATION,
 )
 
@@ -104,7 +105,11 @@ def process_sample(args):
     
     # Check if video already exists to avoid re-generation
     if not Path(video_path).exists():
-        create_video_with_gradual_text(prompt_text, response_text, video_path)
+        # Use Chinese font for Chinese text
+        create_video_with_gradual_text(
+            prompt_text, response_text, video_path, 
+            font_path=get_chinese_font_path()
+        )
         
     entry = generate_jsonl_entry(video_path, prompt_text, response_text)
     return entry

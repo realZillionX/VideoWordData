@@ -47,11 +47,11 @@ declare -A DATASET_SAMPLES
 DATASET_SAMPLES["gsm8k"]=7500
 DATASET_SAMPLES["openmath2_gsm8k"]=200000
 DATASET_SAMPLES["belle_school_math"]=250000
-DATASET_SAMPLES["gsm8k_chinese"]=8800
 DATASET_SAMPLES["tinystories"]=2000000
+DATASET_SAMPLES["tinystories_chinese"]=2000000
 
 # All available datasets
-ALL_DATASETS=("gsm8k" "openmath2_gsm8k" "belle_school_math" "gsm8k_chinese" "tinystories")
+ALL_DATASETS=("gsm8k" "openmath2_gsm8k" "belle_school_math" "tinystories" "tinystories_chinese")
 
 # All task types
 ALL_TASKS=("inference" "rendering")
@@ -65,7 +65,7 @@ print_usage() {
     echo ""
     echo "Arguments:"
     echo "  DATASET      Dataset to process (gsm8k, openmath2_gsm8k, belle_school_math,"
-    echo "               gsm8k_chinese, tinystories, or 'all')"
+    echo "               tinystories, tinystories_chinese, or 'all')"
     echo "  TASK_TYPE    Task type (inference, rendering, or 'all')"
     echo ""
     echo "Options:"

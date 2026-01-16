@@ -23,12 +23,17 @@ RESPONSE_COLOR = (0, 0, 0)
 # Font settings - Monospace font for consistent character width
 PROMPT_FONT_SIZE = 28
 RESPONSE_FONT_SIZE = 28
-CHARS_PER_LINE = 38  # Adjusted for monospace font
+CHARS_PER_LINE = 37  # Adjusted for monospace font
 
 
 def get_font_path():
-    """Get the path to the font file"""
+    """Get the path to the default (English) font file"""
     return Path(__file__).resolve().parent.parent / "fonts" / "DejaVuSansMono.ttf"
+
+
+def get_chinese_font_path():
+    """Get the path to the Chinese font file"""
+    return Path(__file__).resolve().parent.parent / "fonts" / "DroidSansFallbackFull.ttf"
 
 
 def add_sentence_newlines(text):
