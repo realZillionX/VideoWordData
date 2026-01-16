@@ -2,13 +2,15 @@
 OpenMath-2-GSM8K Dataset to Video Conversion Script
 Dataset: https://huggingface.co/datasets/ai2-adapt-dev/openmath-2-gsm8k
 
+Inference Task (Prompt WITHOUT Answer)
+
 JSONL Format:
 {
     "video_path": "", 
     "visual_description": "", 
     "speech_description": "", 
     "audio_description": "", 
-    "prompt": ""
+    "prompt": "Question only"
 }
 
 Dataset Format:
@@ -35,10 +37,7 @@ import os
 import tiktoken
 
 # Configuration
-PROJECT_ROOT = Path(__file__).resolve().parent
-BASE_DIR = Path("/inspire/hdd/project/embodied-multimodality/public/textcentric")
-DATASET_DIR = BASE_DIR / "openmath2_gsm8k"
-VIDEO_DIR = DATASET_DIR / "video"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Video settings - Strict format requirements
 VIDEO_WIDTH = 640
@@ -57,7 +56,7 @@ RESPONSE_FONT_SIZE = 28
 CHARS_PER_LINE = 38  # Adjusted for monospace font
 
 # Ensure directories exist
-VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+# Directories will be created in main()
 
 
 def count_tokens(text, encoding_name="cl100k_base"):
@@ -345,19 +344,45 @@ def process_sample(args):
     return entry
 
 
-def main(num_samples=None, start_idx=0, num_workers=None):
+def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
     """Main function with options for partial generation"""
     
+    # Configuration
+    if base_dir is None:
+        base_dir = "/inspire/hdd/project/embodied-multimodality/public/textcentric"
+    
+    BASE_DIR = Path(base_dir)
+    DATASET_DIR = BASE_DIR / "openmath2_gsm8k"
+    VIDEO_DIR = DATASET_DIR / "video"
+    
+    # Ensure directories exist
+    VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+    
     # Use a unique JSONL file for each task to avoid concurrency issues
-    TASK_JSONL_PATH = DATASET_DIR / f"openmath2_gsm8k_video_data_{start_idx}.jsonl"
+    TASK_JSONL_PATH = DATASET_DIR / f"openmath2_gsm8k_inference_video_data_{start_idx}.jsonl"
     
     # Determine number of workers
     if num_workers is None:
         num_workers = int(os.environ.get('SLURM_CPUS_PER_TASK', cpu_count()))
     
-    # Load dataset from HuggingFace
-    print("Loading OpenMath-2-GSM8K dataset from HuggingFace...")
-    dataset = load_dataset("ai2-adapt-dev/openmath-2-gsm8k", split="train")
+    # Load dataset (local-first strategy)
+    LOCAL_DATASET_BASE = "/inspire/hdd/project/embodied-multimodality/public"
+    LOCAL_DATASET_PATH = Path(LOCAL_DATASET_BASE) / "openmath2_gsm8k" / "dataset"
+    
+    if LOCAL_DATASET_PATH.exists():
+        try:
+            from datasets import load_from_disk
+            print(f"Loading OpenMath-2-GSM8K from local disk: {LOCAL_DATASET_PATH}")
+            dataset = load_from_disk(str(LOCAL_DATASET_PATH))
+            if isinstance(dataset, dict):
+                dataset = dataset["train"]
+            print(f"✓ Loaded {len(dataset)} samples from local disk")
+        except Exception as e:
+            print(f"Failed to load from local disk: {e}, falling back to HuggingFace...")
+            dataset = load_dataset("ai2-adapt-dev/openmath-2-gsm8k", split="train")
+    else:
+        print("Loading OpenMath-2-GSM8K dataset from HuggingFace...")
+        dataset = load_dataset("ai2-adapt-dev/openmath-2-gsm8k", split="train")
     
     # Apply start_idx and num_samples
     if start_idx > 0:
@@ -423,7 +448,9 @@ def main(num_samples=None, start_idx=0, num_workers=None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate OpenMath-2-GSM8K video dataset")
+    parser = argparse.ArgumentParser(description="Generate OpenMath-2-GSM8K video dataset (Inference)")
+    parser.add_argument("--base_dir", type=str, default=None,
+                       help="Base directory for output (default: /inspire/hdd/project/embodied-multimodality/public/textcentric)")
     parser.add_argument("--num_samples", type=int, default=None, 
                        help="Number of samples to process (default: all)")
     parser.add_argument("--start_idx", type=int, default=0,
@@ -432,5 +459,5 @@ if __name__ == "__main__":
                        help="Number of parallel workers (default: auto-detect from SLURM or CPU count)")
     
     args = parser.parse_args()
-    main(num_samples=args.num_samples, start_idx=args.start_idx, 
+    main(base_dir=args.base_dir, num_samples=args.num_samples, start_idx=args.start_idx, 
          num_workers=args.num_workers)

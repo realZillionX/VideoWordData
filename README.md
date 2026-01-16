@@ -49,7 +49,7 @@ VideoWordData/
 
 | 脚本 | 数据集 | 语言 | 数据量 |
 |------|--------|------|--------|
-| `gsm8k.py` | [gsm8k](https://huggingface.co/datasets/gsm8k) | 英文 | ~7.5K |
+| `gsm8k.py` | [openai/gsm8k](https://huggingface.co/datasets/openai/gsm8k) | 英文 | ~7.5K |
 | `openmath2_gsm8k.py` | [ai2-adapt-dev/openmath-2-gsm8k](https://huggingface.co/datasets/ai2-adapt-dev/openmath-2-gsm8k) | 英文 | 大规模 |
 | `belle_school_math.py` | [BelleGroup/school_math_0.25M](https://huggingface.co/datasets/BelleGroup/school_math_0.25M) | 中文 | ~250K |
 | `gsm8k_chinese.py` | [swulling/gsm8k_chinese](https://huggingface.co/datasets/swulling/gsm8k_chinese) | 中文 | ~8.8K |
@@ -69,20 +69,25 @@ VideoWordData/
 ```bash
 # 推理任务
 python inference/gsm8k.py --num_samples 1000
-python inference/belle_school_math.py --num_samples 1000
 
 # 渲染任务
 python rendering/gsm8k.py --num_samples 1000
-python rendering/belle_school_math.py --num_samples 1000
 
 # 指定起始索引（用于分布式处理）
 python inference/gsm8k.py --start_idx 5000 --num_samples 1000
 
 # 指定并行工作进程数
 python inference/gsm8k.py --num_workers 8
+
+# 指定输出目录 (默认: /inspire/hdd/project/embodied-multimodality/public/textcentric)
+python inference/gsm8k.py --base_dir /your/custom/path
 ```
 
-## 输出格式
+## 输出文件命名
+
+- **Video**: `[base_dir]/[dataset]/video/[dataset]_[index].mp4`
+- **Inference JSONL**: `[base_dir]/[dataset]/[dataset]_inference_video_data_[start_idx].jsonl`
+- **Rendering JSONL**: `[base_dir]/[dataset]/[dataset]_rendering_video_data_[start_idx].jsonl`
 
 ### Inference JSONL（推理任务）
 ```json
