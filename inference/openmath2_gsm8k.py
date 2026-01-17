@@ -35,6 +35,11 @@ import argparse
 from multiprocessing import Pool, cpu_count
 import os
 import tiktoken
+import sys
+
+# Add parent directory for common imports
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from common.video_utils import create_video_with_gradual_text, VIDEO_DURATION
 
 # Configuration
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
