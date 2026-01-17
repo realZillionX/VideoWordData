@@ -217,7 +217,12 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
             # Find closest sentence end
             last_punct_idx = -1
             for i in range(len(truncated_words) - 1, -1, -1):
-                if truncated_words[i].endswith(('.', '!', '?')):
+                word = truncated_words[i]
+                if word.endswith(('.', '!', '?')):
+                    last_punct_idx = i
+                    break
+                # Check for sentence endings inside quotes
+                if len(word) > 1 and word[:-1].endswith(('.', '!', '?')) and word.endswith(('"', "'", "”")):
                     last_punct_idx = i
                     break
             
