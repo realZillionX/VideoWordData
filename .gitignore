@@ -5,6 +5,7 @@
 *.jsonl
 *.json
 test_run/
+test_output/
 run_log.txt
 *.log
 
