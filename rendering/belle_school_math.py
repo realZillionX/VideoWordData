@@ -109,10 +109,12 @@ def process_sample(args):
     # Check if video already exists to avoid re-generation
     if not Path(video_path).exists():
         # Use Chinese font for Chinese text
-        create_video_with_gradual_text(
+        success = create_video_with_gradual_text(
             prompt_text, response_text, video_path, 
             font_path=get_chinese_font_path()
         )
+        if not success:
+            return None
         
     entry = generate_jsonl_entry(video_path, prompt_text, response_text)
     return entry
@@ -204,8 +206,9 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
     with Pool(processes=num_workers) as pool:
         with open(TASK_JSONL_PATH, 'w', encoding='utf-8') as jsonl_file:
             for entry in tqdm(pool.imap(process_sample, all_samples), total=len(all_samples)):
-                jsonl_file.write(json.dumps(entry, ensure_ascii=False) + '\n')
-                jsonl_file.flush()
+                if entry:
+                    jsonl_file.write(json.dumps(entry, ensure_ascii=False) + '\n')
+                    jsonl_file.flush()
     
     total_tokens = total_prompt_tokens + total_response_tokens
     print(f"Processed {sample_counter} videos. Total tokens: {total_tokens} (prompt: {total_prompt_tokens}, response: {total_response_tokens})")
