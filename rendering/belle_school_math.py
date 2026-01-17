@@ -68,7 +68,10 @@ def clean_chinese_text(text):
         text += '。'
     
     # Add newline after each sentence (Chinese and English punctuation)
-    text = re.sub(r'([.!?。！？])\s*', r'\1\n', text)
+    # Use negative lookahead to avoid breaking decimal numbers (e.g., 3.33)
+    # Only add newline after . ! ? when NOT followed by a digit
+    text = re.sub(r'([!?。！？])\s*', r'\1\n', text)  # Always break on these
+    text = re.sub(r'\.(?!\d)\s*', '.\n', text)  # Break on . only if not followed by digit
     
     # Clean up multiple newlines
     text = re.sub(r'\n+', '\n', text).strip()

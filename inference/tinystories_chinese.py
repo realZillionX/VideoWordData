@@ -62,6 +62,41 @@ def count_tokens(text, encoding_name="cl100k_base"):
     return len(encoding.encode(text))
 
 
+def convert_quotes_to_chinese(text):
+    """
+    Convert English straight quotes to Chinese curly quotes in pairs.
+    Odd-numbered " becomes " (U+201C, left/opening quote)
+    Even-numbered " becomes " (U+201D, right/closing quote)
+    """
+    result = []
+    quote_count = 0
+    
+    for char in text:
+        if char == '"':
+            quote_count += 1
+            if quote_count % 2 == 1:
+                result.append('\u201c')  # Opening quote (")
+            else:
+                result.append('\u201d')  # Closing quote (")
+        else:
+            result.append(char)
+    
+    return ''.join(result)
+
+
+def clean_dialogue_formatting(text):
+    """
+    Clean up dialogue formatting to prevent closing quotes from starting new lines incorrectly.
+    """
+    import re
+    
+    # Only remove newlines that appear BEFORE a closing quote
+    # Pattern: text + newline(s) + closing quote -> text + closing quote
+    text = re.sub(r'\n+\s*\u201d', '\u201d', text)
+    
+    return text
+
+
 def split_chinese_story(story_text, num_intro_sentences=NUM_INTRO_SENTENCES):
     """
     Split Chinese story into intro (prompt) and continuation (response).
@@ -88,9 +123,17 @@ def split_chinese_story(story_text, num_intro_sentences=NUM_INTRO_SENTENCES):
     intro_text = ''.join(intro_sentences)
     continuation_text = ''.join(continuation_sentences)
     
-    # Add newlines after sentences for readability
-    intro_text = re.sub(r'([。！？.!?])', r'\1\n', intro_text).strip()
-    continuation_text = re.sub(r'([。！？.!?])', r'\1\n', continuation_text).strip()
+    # Add newlines after sentences for readability, but NOT if followed by close quote
+    # This prevents close quote from appearing at line start
+    # Matches sentence ending NOT followed by close quote (U+201D)
+    # Add newlines after sentences for readable display
+    # 1. Do NOT break if followed by closing quote (handled by step 2)
+    intro_text = re.sub(r'([。！？.!?])(?!\u201d)', r'\1\n', intro_text)
+    continuation_text = re.sub(r'([。！？.!?])(?!\u201d)', r'\1\n', continuation_text)
+    
+    # 2. explicit break AFTER closing quote if it follows punctuation
+    intro_text = re.sub(r'([。！？.!?])\u201d', r'\1”\n', intro_text).strip()
+    continuation_text = re.sub(r'([。！？.!?])\u201d', r'\1”\n', continuation_text).strip()
     
     return intro_text, continuation_text
 
@@ -234,17 +277,47 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
         if not story_text or len(story_text) < 20:
             continue
         
+        # Convert English quotes to proper Chinese quotes
+        story_text = convert_quotes_to_chinese(story_text)
+        # Clean up dialogue formatting to prevent close quotes at line start
+        story_text = clean_dialogue_formatting(story_text)
+        
         prompt_text, response_text = split_chinese_story(story_text)
         
         # Skip if prompt or response is too short
         if len(prompt_text.strip()) < 5 or len(response_text.strip()) < 5:
             continue
         
-        # Skip if response is too long (more than 192 words/characters, since we have 193 frames)
-        # For Chinese, count characters instead of words
-        if len(response_text.replace('\n', '').replace(' ', '')) > 192:
-            continue
-        
+        # Truncate if response is too long (more than 192 chars)
+        # We try to truncate at the last sentence ending if possible
+        response_text_clean = response_text.replace('\n', '').replace(' ', '')
+        if len(response_text_clean) > 192:
+            # We need to act on the original response_text which might have newlines
+            # But the limitation is on "words/chars to reveal".
+            # Simplest approach: truncate original text to length 192
+            # But we want to preserve sentence structure if possible.
+            
+            # Find a cut point
+            limit = 192
+            if len(response_text) > limit:
+                candidate = response_text[:limit]
+                # Try to find last punctuation
+                last_punct_idx = -1
+                for punct in ['。', '！', '？', '!', '?', '.']:
+                    p_idx = candidate.rfind(punct)
+                    if p_idx > last_punct_idx:
+                        last_punct_idx = p_idx
+                
+                if last_punct_idx > 150: # If we don't lose too much content (arbitrary threshold)
+                    # Check if followed by closing quote
+                    end_idx = last_punct_idx + 1
+                    if end_idx < len(candidate) and candidate[end_idx] == '\u201d':
+                        end_idx += 1
+                    response_text = candidate[:end_idx]
+                else:
+                    # Hard truncate if no good punctuation found near end
+                    response_text = candidate
+
         video_filename = f"tinystories_chinese_{start_idx + idx:06d}.mp4"
         video_path = VIDEO_DIR / video_filename
         all_samples.append((prompt_text, response_text, video_path))
