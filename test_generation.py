@@ -1,232 +1,212 @@
 #!/usr/bin/env python3
 """
-Test Script for VideoWordData
-
-Directly calls the main() functions from inference and rendering scripts
-to verify the entire pipeline works correctly.
+Test script to verify video generation for all datasets.
+Uses real data from HuggingFace to test each script's video generation pipeline.
 
 Usage:
-    python test_generation.py
-    python test_generation.py --base_dir /custom/output/path
-    python test_generation.py --task inference  # Only test inference
-    python test_generation.py --task rendering  # Only test rendering
+    python test_generation.py           # Test all datasets
+    python test_generation.py gsm8k     # Test specific dataset
+    python test_generation.py --clean   # Remove test output after testing
 """
 
 import argparse
 import subprocess
 import sys
 from pathlib import Path
-import json
+import shutil
 
-# Project root
-PROJECT_ROOT = Path(__file__).resolve().parent
+# Test configuration
+TEST_OUTPUT_DIR = Path(__file__).parent / "test_output"
+NUM_TEST_SAMPLES = 5  # Number of samples to generate per dataset
 
-# All datasets
-DATASETS = ["gsm8k", "openmath2_gsm8k", "belle_school_math", "tinystories", "tinystories_chinese"]
+# All datasets to test
+DATASETS = {
+    "gsm8k": {
+        "inference": "inference/gsm8k.py",
+        "rendering": "rendering/gsm8k.py",
+    },
+    "openmath2_gsm8k": {
+        "inference": "inference/openmath2_gsm8k.py",
+        "rendering": "rendering/openmath2_gsm8k.py",
+    },
+    "belle_school_math": {
+        "inference": "inference/belle_school_math.py",
+        "rendering": "rendering/belle_school_math.py",
+    },
+    "tinystories": {
+        "inference": "inference/tinystories.py",
+        "rendering": "rendering/tinystories.py",
+    },
+    "tinystories_chinese": {
+        "inference": "inference/tinystories_chinese.py",
+        "rendering": "rendering/tinystories_chinese.py",
+    },
+}
 
-# Task types
-TASK_TYPES = ["inference", "rendering"]
 
-
-def run_script(script_path, base_dir, num_samples=1):
-    """
-    Run a generation script with subprocess to properly test it.
+def run_test(script_path: str, dataset_name: str, task_type: str, num_samples: int = 5) -> dict:
+    """Run a single test and return results."""
+    print(f"\n{'='*60}")
+    print(f"Testing: {dataset_name} ({task_type})")
+    print(f"Script: {script_path}")
+    print(f"{'='*60}")
     
-    Args:
-        script_path: Path to the Python script
-        base_dir: Output directory
-        num_samples: Number of samples to generate
-        
-    Returns:
-        tuple: (success: bool, output: str)
-    """
     cmd = [
-        sys.executable,
-        str(script_path),
-        "--base_dir", str(base_dir),
+        sys.executable, script_path,
+        "--base_dir", str(TEST_OUTPUT_DIR),
         "--num_samples", str(num_samples),
-        "--num_workers", "1"  # Use single worker for testing
+        "--num_workers", "4",
     ]
-    
-    print(f"Running: {' '.join(cmd)}")
     
     try:
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=300,  # 5 minute timeout per script
-            cwd=str(PROJECT_ROOT)
+            timeout=300,  # 5 minute timeout per test
         )
         
-        output = result.stdout + result.stderr
         success = result.returncode == 0
         
-        return success, output
+        # Count generated files
+        video_dir = TEST_OUTPUT_DIR / dataset_name / "video"
+        video_count = len(list(video_dir.glob("*.mp4"))) if video_dir.exists() else 0
+        
+        jsonl_pattern = f"{dataset_name}_{task_type}_video_data_*.jsonl"
+        jsonl_dir = TEST_OUTPUT_DIR / dataset_name
+        jsonl_files = list(jsonl_dir.glob(jsonl_pattern)) if jsonl_dir.exists() else []
+        jsonl_count = len(jsonl_files)
+        
+        # Count entries in JSONL
+        jsonl_entries = 0
+        for jf in jsonl_files:
+            with open(jf) as f:
+                jsonl_entries += sum(1 for _ in f)
+        
+        return {
+            "dataset": dataset_name,
+            "task": task_type,
+            "success": success,
+            "videos": video_count,
+            "jsonl_files": jsonl_count,
+            "jsonl_entries": jsonl_entries,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode,
+        }
         
     except subprocess.TimeoutExpired:
-        return False, "Timeout expired (5 minutes)"
+        return {
+            "dataset": dataset_name,
+            "task": task_type,
+            "success": False,
+            "videos": 0,
+            "jsonl_files": 0,
+            "jsonl_entries": 0,
+            "error": "Timeout (300s exceeded)",
+        }
     except Exception as e:
-        return False, str(e)
+        return {
+            "dataset": dataset_name,
+            "task": task_type,
+            "success": False,
+            "videos": 0,
+            "jsonl_files": 0,
+            "jsonl_entries": 0,
+            "error": str(e),
+        }
 
 
-def test_dataset(dataset, task_type, base_dir):
-    """Test a single dataset with a specific task type"""
-    script_path = PROJECT_ROOT / task_type / f"{dataset}.py"
+def print_results(results: list):
+    """Print test results in a table format."""
+    print("\n" + "="*80)
+    print("TEST RESULTS SUMMARY")
+    print("="*80)
+    print(f"{'Dataset':<25} {'Task':<12} {'Status':<8} {'Videos':<8} {'JSONL Entries'}")
+    print("-"*80)
     
-    if not script_path.exists():
-        return {
-            "status": "skipped",
-            "error": f"Script not found: {script_path}"
-        }
+    passed = 0
+    failed = 0
     
-    print(f"\n{'='*60}")
-    print(f"Testing: {task_type}/{dataset}.py")
-    print(f"{'='*60}")
-    
-    success, output = run_script(script_path, base_dir, num_samples=1)
-    
-    if success:
-        print(f"✓ {task_type}/{dataset}.py passed")
+    for r in results:
+        status = "✓ PASS" if r["success"] else "✗ FAIL"
+        print(f"{r['dataset']:<25} {r['task']:<12} {status:<8} {r['videos']:<8} {r['jsonl_entries']}")
         
-        # Find generated files
-        dataset_dir = Path(base_dir) / dataset
-        video_dir = dataset_dir / "video"
-        
-        videos = list(video_dir.glob("*.mp4")) if video_dir.exists() else []
-        jsonl_pattern = f"{dataset}_{task_type}_video_data_*.jsonl"
-        jsonls = list(dataset_dir.glob(jsonl_pattern)) if dataset_dir.exists() else []
-        
-        return {
-            "status": "success",
-            "videos": [str(v) for v in videos],
-            "jsonl_files": [str(j) for j in jsonls],
-        }
-    else:
-        print(f"✗ {task_type}/{dataset}.py failed")
-        # Print last 500 chars of output for debugging
-        if len(output) > 500:
-            print(f"...{output[-500:]}")
+        if r["success"]:
+            passed += 1
         else:
-            print(output)
-        
-        return {
-            "status": "failed",
-            "error": output[-1000:] if len(output) > 1000 else output
-        }
+            failed += 1
+            if "error" in r:
+                print(f"   Error: {r['error']}")
+            elif r.get("stderr"):
+                # Show last line of stderr
+                last_error = r["stderr"].strip().split("\n")[-1]
+                print(f"   Error: {last_error[:70]}...")
+    
+    print("-"*80)
+    print(f"Total: {passed} passed, {failed} failed")
+    print("="*80)
+    
+    return failed == 0
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Test video generation by calling actual inference/rendering scripts"
-    )
-    parser.add_argument(
-        "--base_dir",
-        type=str,
-        default="/home/zillionx/NLP/testData",
-        help="Base directory for test output"
-    )
-    parser.add_argument(
-        "--task",
-        type=str,
-        choices=["inference", "rendering", "all"],
-        default="all",
-        help="Which task type to test (default: all)"
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        choices=DATASETS + ["all"],
-        default="all",
-        help="Which dataset to test (default: all)"
-    )
+    parser = argparse.ArgumentParser(description="Test video generation for all datasets")
+    parser.add_argument("dataset", nargs="?", default="all",
+                       help="Dataset to test (or 'all' for all datasets)")
+    parser.add_argument("--task", choices=["inference", "rendering", "all"], default="inference",
+                       help="Task type to test (default: inference)")
+    parser.add_argument("--clean", action="store_true",
+                       help="Remove test output directory after testing")
+    parser.add_argument("--samples", type=int, default=NUM_TEST_SAMPLES,
+                       help=f"Number of samples to test (default: {NUM_TEST_SAMPLES})")
+    
     args = parser.parse_args()
     
-    base_dir = Path(args.base_dir)
-    base_dir.mkdir(parents=True, exist_ok=True)
+    num_samples = args.samples
     
-    print("="*60)
-    print("VideoWordData Test Script")
-    print("="*60)
-    print(f"Output Directory: {base_dir}")
-    print(f"Task Type: {args.task}")
-    print(f"Dataset: {args.dataset}")
-    print("="*60)
+    # Prepare test output directory
+    if TEST_OUTPUT_DIR.exists():
+        shutil.rmtree(TEST_OUTPUT_DIR)
+    TEST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Determine what to test
-    if args.task == "all":
-        task_types = TASK_TYPES
-    else:
-        task_types = [args.task]
-    
+    # Determine which datasets to test
     if args.dataset == "all":
-        datasets = DATASETS
+        datasets_to_test = list(DATASETS.keys())
     else:
-        datasets = [args.dataset]
+        if args.dataset not in DATASETS:
+            print(f"Error: Unknown dataset '{args.dataset}'")
+            print(f"Available: {', '.join(DATASETS.keys())}")
+            return 1
+        datasets_to_test = [args.dataset]
+    
+    # Determine which tasks to test
+    if args.task == "all":
+        tasks_to_test = ["inference", "rendering"]
+    else:
+        tasks_to_test = [args.task]
     
     # Run tests
-    results = {}
+    results = []
+    for dataset in datasets_to_test:
+        for task in tasks_to_test:
+            script = DATASETS[dataset].get(task)
+            if script:
+                result = run_test(script, dataset, task, num_samples)
+                results.append(result)
     
-    for task_type in task_types:
-        results[task_type] = {}
-        for dataset in datasets:
-            result = test_dataset(dataset, task_type, base_dir)
-            results[task_type][dataset] = result
+    # Print summary
+    all_passed = print_results(results)
     
-    # Summary
-    print("\n" + "="*60)
-    print("Test Summary")
-    print("="*60)
+    # Cleanup if requested
+    if args.clean and TEST_OUTPUT_DIR.exists():
+        print(f"\nCleaning up: Removing {TEST_OUTPUT_DIR}")
+        shutil.rmtree(TEST_OUTPUT_DIR)
+    else:
+        print(f"\nTest outputs saved to: {TEST_OUTPUT_DIR}")
     
-    total_tests = 0
-    passed_tests = 0
-    
-    for task_type in task_types:
-        print(f"\n{task_type.upper()}:")
-        for dataset in datasets:
-            result = results[task_type][dataset]
-            total_tests += 1
-            
-            if result["status"] == "success":
-                passed_tests += 1
-                videos = result.get("videos", [])
-                jsonls = result.get("jsonl_files", [])
-                print(f"  ✓ {dataset}")
-                if videos:
-                    print(f"    Videos: {len(videos)} files")
-                if jsonls:
-                    print(f"    JSONL: {len(jsonls)} files")
-            elif result["status"] == "skipped":
-                print(f"  ⊘ {dataset}: {result.get('error', 'skipped')}")
-            else:
-                print(f"  ✗ {dataset}: failed")
-    
-    print(f"\nTotal: {passed_tests}/{total_tests} tests passed")
-    
-    # Save results
-    results_file = base_dir / "test_results.json"
-    with open(results_file, 'w', encoding='utf-8') as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-    print(f"Results saved to: {results_file}")
-    
-    # List generated files
-    print("\n" + "="*60)
-    print("Generated Files")
-    print("="*60)
-    
-    for task_type in task_types:
-        for dataset in datasets:
-            dataset_dir = base_dir / dataset
-            if dataset_dir.exists():
-                video_dir = dataset_dir / "video"
-                if video_dir.exists():
-                    for video in video_dir.glob("*.mp4"):
-                        print(f"  {video}")
-                for jsonl in dataset_dir.glob("*.jsonl"):
-                    print(f"  {jsonl}")
-    
-    return 0 if passed_tests == total_tests else 1
+    return 0 if all_passed else 1
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())
