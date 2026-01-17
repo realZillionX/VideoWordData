@@ -361,7 +361,7 @@ def create_video_with_gradual_text(prompt_text, response_text, output_path, font
     prompt_height = len(prompt_lines) * line_height
     separator_height = 20  # 5px gap + 2px line + 15px gap
     available_for_response = VIDEO_HEIGHT - margin - prompt_height - separator_height - margin
-    min_response_lines = 6  # Require at least 6 lines for response to avoid cramping
+    min_response_lines = 3  # Require at least 3 lines for response
     
     # print(f"DEBUG: prompt_lines={len(prompt_lines)}, prompt_height={prompt_height}, available={available_for_response}, min_req={min_response_lines*line_height}")
     
