@@ -6,25 +6,29 @@
 
 ```
 VideoWordData/
-├── inference/           # 推理任务（prompt无答案，需要模型推理）
+├── inference/           # 推理任务（prompt无答案，静默视频）
 │   ├── gsm8k.py              # GSM8K 数学题 (英文)
 │   ├── openmath2_gsm8k.py    # OpenMath-2-GSM8K (英文)
 │   ├── belle_school_math.py  # BELLE 中文数学题
 │   ├── tinystories.py        # TinyStories 故事续写 (英文)
 │   └── tinystories_chinese.py # TinyStories 中文版
-├── rendering/           # 渲染任务（prompt含答案，训练渲染能力）
-│   ├── gsm8k.py
-│   ├── openmath2_gsm8k.py
-│   ├── belle_school_math.py
-│   ├── tinystories.py
-│   └── tinystories_chinese.py
+├── rendering/           # 渲染任务（prompt含答案，静默视频）
+│   └── ...
+├── inference_audio/     # 🆕 推理任务（带TTS音频和逐句字幕）
+│   ├── tinystories.py        # TinyStories 故事续写 (英文)
+│   └── tinystories_chinese.py # TinyStories 中文版
+├── rendering_audio/     # 🆕 渲染任务（带TTS音频和逐句字幕）
+│   ├── tinystories.py        # TinyStories 故事续写 (英文)
+│   └── tinystories_chinese.py # TinyStories 中文版
 ├── common/              # 共享代码
-│   ├── video_utils.py        # 视频生成函数
+│   ├── video_utils.py        # 静默视频生成函数
+│   ├── audio_video_utils.py  # 🆕 音频视频生成函数（逐句字幕）
 │   └── dataset_utils.py      # 数据集加载工具
 └── fonts/               # 字体文件
     ├── DejaVuSansMono.ttf         # 英文等宽字体
     └── DroidSansFallbackFull.ttf  # 中文字体
 ```
+
 
 ## 视频特性
 
@@ -229,9 +233,80 @@ tail -f logs/gsm8k_inference_*.out
 ## 依赖
 
 ```bash
+pip install -r requirements.txt
+```
+
+或手动安装：
+```bash
+# 核心依赖
 pip install datasets opencv-python numpy pillow tqdm tiktoken
+
+# 音频视频功能 (可选)
+pip install edge-tts moviepy
 ```
 
 ## 字体
 
 需要在 `fonts/` 目录下放置 `DejaVuSansMono.ttf` 字体文件。
+
+---
+
+## 🆕 音频视频功能 (Audio Video Feature)
+
+带 TTS 语音朗读和**逐句同步字幕**的视频生成功能，使用 Microsoft Edge TTS (免费，高质量)。
+
+### 视频特性
+
+| 属性 | 值 |
+|------|-----|
+| 分辨率 | 640 × 360 (360P) |
+| 时长 | 动态（由 TTS 音频决定，通常 5-30 秒）|
+| 帧率 | 24 FPS |
+| 上方区域 | 白色背景 + 黑色 prompt 文字 |
+| 字幕区域 | **视频底部**，半透明黑色背景 + 白色大字体 |
+| 字幕同步 | **逐句显示**（每句话与音频同步出现）|
+| 字幕字体 | 36pt（清晰可读）|
+
+### 使用方法
+
+```bash
+# 推理任务（prompt 不含续写）
+python inference_audio/tinystories.py --num_samples 100
+python inference_audio/tinystories_chinese.py --num_samples 100
+
+# 渲染任务（prompt 包含完整文本）
+python rendering_audio/tinystories.py --num_samples 100
+python rendering_audio/tinystories_chinese.py --num_samples 100
+
+# 指定输出目录
+python inference_audio/tinystories.py --base_dir ./output --num_samples 10
+```
+
+### Inference vs Rendering (Audio)
+
+| 类型 | 目录 | JSONL prompt 内容 | 用途 |
+|------|------|------------------|------|
+| **inference_audio** | `inference_audio/` | 只有开头，不含续写 | 训练推理能力 |
+| **rendering_audio** | `rendering_audio/` | 开头 + 续写都包含 | 训练渲染能力 |
+
+### 输出格式
+
+```
+[base_dir]/
+├── tinystories_audio/           # 英文带音频字幕视频
+│   ├── video/
+│   ├── tinystories_inference_audio_video_data_0.jsonl
+│   └── tinystories_rendering_audio_video_data_0.jsonl
+└── tinystories_chinese_audio/   # 中文带音频字幕视频
+    ├── video/
+    ├── tinystories_chinese_inference_audio_video_data_0.jsonl
+    └── tinystories_chinese_rendering_audio_video_data_0.jsonl
+```
+
+### TTS 支持语言
+
+| 语言 | Voice ID |
+|------|----------|
+| 英文 | en-US-AriaNeural |
+| 中文 | zh-CN-XiaoxiaoNeural |
+

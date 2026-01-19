@@ -1,0 +1,13 @@
+# VideoWordData Dependencies
+
+# Core dependencies (existing)
+datasets
+opencv-python
+numpy
+pillow
+tqdm
+tiktoken
+
+# Audio video generation (new)
+edge-tts
+moviepy
