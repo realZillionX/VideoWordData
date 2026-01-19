@@ -37,7 +37,8 @@ from common.audio_video_utils import (
 
 # Configuration
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MAX_VIDEOS_PER_SAMPLE = 3  # Maximum videos to generate per data sample
+MAX_VIDEOS_PER_SAMPLE = 3
+NUM_INTRO_SENTENCES = 2  # Sentences to use as context/prompt only (not in video)
 
 
 def count_tokens(text, encoding_name="cl100k_base"):
@@ -65,8 +66,15 @@ def generate_video_segments(story_text, language="en"):
     """
     sentences = split_into_sentences(story_text)
     
-    if len(sentences) < 2:
-        return []
+    # Need at least (Intro + 1) sentences to generate a video
+    if len(sentences) < NUM_INTRO_SENTENCES + 1:
+        # Fallback: if at least 2 sentences, use 1 as intro
+        if len(sentences) >= 2:
+            start_idx = 1
+        else:
+            return []
+    else:
+        start_idx = NUM_INTRO_SENTENCES
     
     segments = []
     video_idx = 0
@@ -75,7 +83,7 @@ def generate_video_segments(story_text, language="en"):
     # Video 0: Start from sentence 0, speak sentences that fit in 10s
     # Video 1: Start from where video 0 ended, etc.
     
-    current_start = 0
+    current_start = start_idx
     
     while current_start < len(sentences) and video_idx < MAX_VIDEOS_PER_SAMPLE:
         remaining_sentences = sentences[current_start:]
@@ -93,7 +101,7 @@ def generate_video_segments(story_text, language="en"):
             continue
         
         # Prompt: sentences before the spoken part (for JSONL, not shown in video)
-        prompt_sentences = sentences[:current_start] if current_start > 0 else []
+        prompt_sentences = sentences[:current_start]
         
         # Spoken sentences (will be narrated and shown as subtitles)
         spoken_sentences = remaining_sentences[:num_fit]

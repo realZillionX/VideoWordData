@@ -32,6 +32,7 @@ from common.audio_video_utils import (
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MAX_VIDEOS_PER_SAMPLE = 3
+NUM_INTRO_SENTENCES = 2  # Sentences to use as context/prompt only (not in video)
 
 
 def count_tokens(text, encoding_name="cl100k_base"):
@@ -49,12 +50,19 @@ def generate_video_segments(story_text, language="en"):
     """Generate multiple video segments from a story."""
     sentences = split_into_sentences(story_text)
     
-    if len(sentences) < 2:
-        return []
+    # Need at least (Intro + 1) sentences to generate a video
+    if len(sentences) < NUM_INTRO_SENTENCES + 1:
+        # Fallback: if at least 2 sentences, use 1 as intro
+        if len(sentences) >= 2:
+            start_idx = 1
+        else:
+            return []
+    else:
+        start_idx = NUM_INTRO_SENTENCES
     
     segments = []
     video_idx = 0
-    current_start = 0
+    current_start = start_idx
     
     while current_start < len(sentences) and video_idx < MAX_VIDEOS_PER_SAMPLE:
         remaining_sentences = sentences[current_start:]
@@ -67,7 +75,7 @@ def generate_video_segments(story_text, language="en"):
             current_start += 1
             continue
         
-        prompt_sentences = sentences[:current_start] if current_start > 0 else []
+        prompt_sentences = sentences[:current_start]
         spoken_sentences = remaining_sentences[:num_fit]
         
         if len(spoken_sentences) > 0:
