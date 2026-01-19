@@ -182,9 +182,9 @@ async def generate_tts_with_word_timestamps(
         return [], actual_duration
     
     # Distribute timestamps evenly across audio duration
-    # Leave small padding at start and end
+    # Leave small padding at start and larger padding at end (to compensate for TTS trailing silence)
     start_padding = 0.05
-    end_padding = 0.1
+    end_padding = 0.8  # Increased to fix visual lag (user reported video slower than audio)
     usable_duration = actual_duration - start_padding - end_padding
     
     if usable_duration <= 0:
