@@ -20,9 +20,12 @@ DEFAULT_NUM_SAMPLES = 5
 
 # Audio datasets to test
 AUDIO_DATASETS = {
-    "tinystories": "inference_audio/tinystories.py",
-    "tinystories_chinese": "inference_audio/tinystories_chinese.py",
-    "gsm8k": "inference_audio/gsm8k.py",
+    "tinystories_inference": "inference_audio/tinystories.py",
+    "tinystories_rendering": "rendering_audio/tinystories.py",
+    "tinystories_chinese_inference": "inference_audio/tinystories_chinese.py",
+    "tinystories_chinese_rendering": "rendering_audio/tinystories_chinese.py",
+    "gsm8k_inference": "inference_audio/gsm8k.py",
+    "gsm8k_rendering": "rendering_audio/gsm8k.py",
 }
 
 
