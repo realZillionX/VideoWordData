@@ -144,8 +144,12 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
     if num_workers is None:
         num_workers = max(1, int(os.environ.get('SLURM_CPUS_PER_TASK', cpu_count())) // 2)
     
+    # Load dataset
     LOCAL_DATASET_BASE = "/inspire/hdd/project/embodied-multimodality/public"
     LOCAL_DATASET_PATH = Path(LOCAL_DATASET_BASE) / "tinystories_chinese" / "dataset"
+    
+    stories = []
+    total_to_process = num_samples if num_samples else 100000 
     
     if LOCAL_DATASET_PATH.exists():
         try:
@@ -154,26 +158,67 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
             dataset = load_from_disk(str(LOCAL_DATASET_PATH))
             if isinstance(dataset, dict):
                 dataset = dataset["train"]
-            print(f"✓ Loaded {len(dataset)} samples from local disk")
+            
+            print(f"Parsing jsonl content from local dataset...")
+            for shard in dataset:
+                jsonl_content = shard.get("jsonl", b"")
+                if isinstance(jsonl_content, bytes):
+                    jsonl_content = jsonl_content.decode("utf-8")
+                
+                for line in jsonl_content.strip().split("\n"):
+                    if line.strip():
+                        try:
+                            story_data = json.loads(line)
+                            story_zh = story_data.get("story_zh", "")
+                            if story_zh:
+                                stories.append(story_zh)
+                                if len(stories) >= start_idx + total_to_process:
+                                    break
+                        except:
+                            continue
+                if len(stories) >= start_idx + total_to_process:
+                    break
+            print(f"✓ Loaded {len(stories)} stories from local disk")
         except Exception as e:
             print(f"Failed to load from local disk: {e}, falling back to HuggingFace...")
-            dataset = load_dataset("adam89/TinyStoriesChinese", split="train")
-    else:
-        print("Loading TinyStories Chinese dataset from HuggingFace...")
-        dataset = load_dataset("adam89/TinyStoriesChinese", split="train")
-    
+            stories = []
+
+    if not stories:
+        print("Loading TinyStories Chinese dataset from HuggingFace (streaming mode)...")
+        dataset = load_dataset("adam89/TinyStoriesChinese", split="train", streaming=True)
+        
+        for shard in dataset:
+            jsonl_content = shard.get("jsonl", b"")
+            if isinstance(jsonl_content, bytes):
+                jsonl_content = jsonl_content.decode("utf-8")
+            
+            for line in jsonl_content.strip().split("\n"):
+                if line.strip():
+                    try:
+                        story_data = json.loads(line)
+                        story_zh = story_data.get("story_zh", "")
+                        if story_zh:
+                            stories.append(story_zh)
+                            if len(stories) >= start_idx + total_to_process:
+                                break
+                    except:
+                        continue
+            if len(stories) >= start_idx + total_to_process:
+                break
+        print(f"✓ Loaded {len(stories)} stories from HuggingFace")
+
     if start_idx > 0:
-        dataset = dataset.select(range(start_idx, len(dataset)))
+        stories = stories[start_idx:]
     
     if num_samples:
-        dataset = dataset.select(range(min(num_samples, len(dataset))))
+        stories = stories[:num_samples]
     
     language = "zh"
     all_samples = []
     
     print("Generating video segments...")
-    for idx, sample in enumerate(tqdm(dataset, desc="Analyzing samples")):
-        story_text = sample.get("text", "")
+    for idx, story_text in enumerate(tqdm(stories, desc="Analyzing samples")):
+        # story_text is already extracted
         
         if len(story_text.strip()) < 10:
             continue
