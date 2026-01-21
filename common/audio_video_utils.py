@@ -719,95 +719,125 @@ def create_video_with_audio_subtitles_fast(
         
         # Use ffmpeg to combine frames + audio via stdin PIPE (Zero-IO optimization)
         # This avoids writing thousands of temp images to disk, which is the bottleneck.
-        cmd = [
-            ffmpeg_exe, '-y',
-            '-f', 'rawvideo',
-            '-vcodec', 'rawvideo',
-            '-s', f'{VIDEO_WIDTH}x{VIDEO_HEIGHT}',
-            '-pix_fmt', 'rgb24',
-            '-r', str(fps),
-            '-i', '-',  # Read from stdin
-            '-i', audio_path,
-            '-c:v', 'libopenh264',
-            '-b:v', '2M', # Set moderate bitrate for openh264
-            '-c:a', 'aac',
-            '-pix_fmt', 'yuv420p',
-            '-threads', '1', # Prevent encoder thread contention
-            str(output_path)
+        # Try multiple codecs in order of preference/speed
+        ffmpeg_codecs = [
+            # 1. libx264 with ultrafast preset (Standard choice, fastest if GPL available)
+            ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23'],
+            # 2. libopenh264 (Cisco license, often in conda)
+            ['-c:v', 'libopenh264', '-b:v', '2M'],
+            # 3. mpeg4 (Legacy fallback, guaranteed compatibility)
+            ['-c:v', 'mpeg4', '-q:v', '5'],
         ]
         
-        stderr_file = tempfile.TemporaryFile()
+        success = False
+        last_error = ""
         
-        try:
-            # Start ffmpeg process
-            # Use tempfile for stderr to avoid deadlock/buffer issues while streaming stdin
-            process = subprocess.Popen(
-                cmd, 
-                stdin=subprocess.PIPE, 
-                stdout=subprocess.DEVNULL, 
-                stderr=stderr_file
-            )
+        for codec_args in ffmpeg_codecs:
+            cmd = [
+                ffmpeg_exe, '-y',
+                '-f', 'rawvideo',
+                '-vcodec', 'rawvideo',
+                '-s', f'{VIDEO_WIDTH}x{VIDEO_HEIGHT}',
+                '-pix_fmt', 'rgb24',
+                '-r', str(fps),
+                '-i', '-',  # Read from stdin
+                '-i', audio_path,
+            ] + codec_args + [
+                '-c:a', 'aac',
+                '-pix_fmt', 'yuv420p',
+                '-threads', '1', # Prevent encoder thread contention
+                str(output_path)
+            ]
             
-            total_frames = int(target_duration * fps)
-            current_chunk_idx = 0
+            stderr_file = tempfile.TemporaryFile()
+            process = None
             
-            for frame_num in range(total_frames):
-                t = frame_num / fps
-                
-                # Find current subtitle chunk
-                current_text = ""
-                while current_chunk_idx < len(display_chunks):
-                    chunk_start, chunk_end, chunk_text = display_chunks[current_chunk_idx]
-                    if t < chunk_start:
-                        break
-                    elif t <= chunk_end or (current_chunk_idx + 1 < len(display_chunks) and t < display_chunks[current_chunk_idx + 1][0]):
-                        current_text = chunk_text
-                        break
-                    else:
-                        current_chunk_idx += 1
-                
-                if current_chunk_idx > 0 and current_chunk_idx < len(display_chunks):
-                     # Handle transition/gap logic (preserve existing behavior)
-                     if t >= display_chunks[current_chunk_idx][0]:
-                         current_text = display_chunks[current_chunk_idx][2]
-                     else:
-                         current_text = display_chunks[current_chunk_idx - 1][2]
-                
-                # Create frame (returns numpy array RGB)
-                frame = create_subtitle_frame(
-                    current_text,
-                    subtitle_font_en=subtitle_font_en,
-                    subtitle_font_cn=subtitle_font_cn
+            try:
+                # Start ffmpeg process
+                process = subprocess.Popen(
+                    cmd, 
+                    stdin=subprocess.PIPE, 
+                    stdout=subprocess.DEVNULL, 
+                    stderr=stderr_file
                 )
                 
-                # Write raw frame bytes to pipe
-                process.stdin.write(frame.tobytes())
-            
-            # Close input stream to signal EOF to ffmpeg
-            process.stdin.close()
-            
-            # Wait for finish
-            process.wait()
-            
-            if process.returncode != 0:
-                stderr_file.seek(0)
-                err_output = stderr_file.read().decode('utf-8', errors='ignore')
-                print(f"ffmpeg error: {err_output}")
-                return False
+                total_frames = int(target_duration * fps)
+                current_chunk_idx = 0
                 
-        except Exception as e:
-            print(f"Error in video generation pipe: {e}")
-            if 'process' in locals() and process.poll() is None:
-                process.kill()
-            if 'stderr_file' in locals():
-                stderr_file.seek(0)
-                print(f"Stderr: {stderr_file.read().decode('utf-8', errors='ignore')}")
-            import traceback
-            traceback.print_exc()
+                # Stream frames to pipe
+                for frame_num in range(total_frames):
+                    t = frame_num / fps
+                    
+                    # Find current subtitle chunk logic (same as before)
+                    # Optimization: Keep finding chunk index
+                    while current_chunk_idx < len(display_chunks):
+                        chunk_start, chunk_end, chunk_text = display_chunks[current_chunk_idx]
+                        if t < chunk_start:
+                            break
+                        elif t <= chunk_end or (current_chunk_idx + 1 < len(display_chunks) and t < display_chunks[current_chunk_idx + 1][0]):
+                            break
+                        else:
+                            current_chunk_idx += 1
+                    
+                    current_text = ""
+                    if current_chunk_idx < len(display_chunks):
+                        if current_chunk_idx > 0:
+                             # Logic to determine text based on time
+                             c_start = display_chunks[current_chunk_idx][0]
+                             if t >= c_start:
+                                 current_text = display_chunks[current_chunk_idx][2]
+                             else:
+                                 # Transition gap
+                                 current_text = display_chunks[current_chunk_idx - 1][2]
+                        else:
+                             # First chunk
+                             if t >= display_chunks[0][0]:
+                                current_text = display_chunks[0][2]
+
+                    # Create frame 
+                    frame = create_subtitle_frame(
+                        current_text,
+                        subtitle_font_en=subtitle_font_en,
+                        subtitle_font_cn=subtitle_font_cn
+                    )
+                    
+                    # Write to pipe
+                    try:
+                        process.stdin.write(frame.tobytes())
+                    except BrokenPipeError:
+                        # FFmpeg died early (e.g. invalid codec options)
+                        break
+                
+                # Close stdin to signal EOF
+                try:
+                    process.stdin.close()
+                except:
+                    pass
+                
+                # Wait for finish
+                process.wait()
+                
+                if process.returncode == 0:
+                    success = True
+                    break # Success!
+                else:
+                    stderr_file.seek(0)
+                    last_error = stderr_file.read().decode('utf-8', errors='ignore')
+                    # Continue to next codec
+                    
+            except Exception as e:
+                last_error = str(e)
+                if 'process' in locals() and process is not None and process.poll() is None:
+                    process.kill()
+                import traceback
+                traceback.print_exc()
+            finally:
+                if 'stderr_file' in locals():
+                    stderr_file.close()
+
+        if not success:
+            print(f"ffmpeg error (all codecs failed): {last_error}")
             return False
-        finally:
-            if 'stderr_file' in locals():
-                stderr_file.close()
             
     return True
 
