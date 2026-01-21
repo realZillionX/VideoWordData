@@ -125,7 +125,7 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
     TASK_JSONL_PATH = DATASET_DIR / f"gsm8k_rendering_audio_video_data_{start_idx}.jsonl"
     
     if num_workers is None:
-        num_workers = max(1, int(os.environ.get('SLURM_CPUS_PER_TASK', cpu_count())) // 2)
+        num_workers = max(1, int(os.environ.get('SLURM_CPUS_PER_TASK', cpu_count())))
     
     # Load dataset
     LOCAL_DATASET_BASE = "/inspire/hdd/project/embodied-multimodality/public"
