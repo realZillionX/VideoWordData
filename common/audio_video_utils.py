@@ -565,7 +565,19 @@ def create_video_with_audio_subtitles_fast(
     """
     import subprocess
     import wave
+    import shutil
     
+    # Try to find ffmpeg: check system PATH first, then imageio-ffmpeg
+    ffmpeg_exe = shutil.which('ffmpeg')
+    if not ffmpeg_exe:
+        try:
+            import imageio_ffmpeg
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            print(f"Using imageio-ffmpeg binary: {ffmpeg_exe}")
+        except ImportError:
+            print("ffmpeg not found in PATH and imageio-ffmpeg not installed")
+            return False
+            
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
@@ -695,7 +707,7 @@ def create_video_with_audio_subtitles_fast(
         for codec_args in ffmpeg_codecs:
             try:
                 cmd = [
-                    'ffmpeg', '-y',
+                    ffmpeg_exe, '-y',
                     '-framerate', str(fps),
                     '-i', os.path.join(frame_dir, 'frame_%05d.png'),
                     '-i', audio_path,

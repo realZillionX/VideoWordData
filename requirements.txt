@@ -10,5 +10,6 @@ tiktoken
 
 # Audio video generation (offline TTS)
 piper-tts  # Piper TTS - offline, supports Python 3.12
+imageio-ffmpeg  # Provides ffmpeg binary if not in system
 moviepy
 onnxruntime-gpu  # GPU acceleration for Piper TTS
