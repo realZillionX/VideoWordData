@@ -28,10 +28,10 @@ import os
 import tiktoken
 
 from common.audio_video_utils import (
-    create_video_with_audio_subtitles,
+    create_video_with_audio_subtitles_fast as create_video_with_audio_subtitles,
     estimate_audio_duration,
-    can_fit_in_duration,
-    AUDIO_VIDEO_DURATION,
+    find_sentences_within_duration,
+    split_text_into_sentences
 )
 
 # Configuration

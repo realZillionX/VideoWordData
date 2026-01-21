@@ -28,7 +28,7 @@ import os
 import tiktoken
 
 from common.audio_video_utils import (
-    create_video_with_audio_subtitles,
+    create_video_with_audio_subtitles_fast as create_video_with_audio_subtitles,
     estimate_audio_duration,
     split_text_into_sentences,
     find_sentences_within_duration,

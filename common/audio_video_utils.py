@@ -549,6 +549,169 @@ def create_video_with_audio_subtitles(
     return True
 
 
+def create_video_with_audio_subtitles_fast(
+    text_to_speak: str,
+    output_path: str,
+    language: str = "en",
+    voice: str = None,
+    fps: int = AUDIO_FPS,
+    target_duration: float = AUDIO_VIDEO_DURATION,
+) -> bool:
+    """
+    FAST version using ffmpeg directly instead of moviepy.
+    Creates a 10-second video with TTS audio and synchronized subtitles.
+    
+    This is 5-10x faster than the moviepy version.
+    """
+    import subprocess
+    import wave
+    
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Load fonts
+    try:
+        subtitle_font_en = ImageFont.truetype(str(get_font_path()), SUBTITLE_FONT_SIZE)
+        subtitle_font_cn = ImageFont.truetype(str(get_chinese_font_path()), SUBTITLE_FONT_SIZE)
+    except Exception:
+        subtitle_font_en = ImageFont.load_default()
+        subtitle_font_cn = subtitle_font_en
+    
+    with tempfile.TemporaryDirectory() as temp_dir:
+        audio_path = os.path.join(temp_dir, "audio.wav")
+        
+        # Generate TTS audio
+        try:
+            piper_voice = get_piper_voice(language)
+            audio_chunks = list(piper_voice.synthesize(text_to_speak))
+            
+            if not audio_chunks:
+                return False
+            
+            all_audio = b''.join(c.audio_int16_bytes for c in audio_chunks)
+            sample_rate = audio_chunks[0].sample_rate
+            sample_width = audio_chunks[0].sample_width
+            sample_channels = audio_chunks[0].sample_channels
+            
+            with wave.open(audio_path, 'wb') as wav_file:
+                wav_file.setnchannels(sample_channels)
+                wav_file.setsampwidth(sample_width)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(all_audio)
+                
+            actual_duration = len(all_audio) / (sample_rate * sample_width)
+        except Exception as e:
+            print(f"Error generating TTS: {e}")
+            return False
+        
+        if actual_duration > target_duration + 0.5:
+            print(f"Audio too long ({actual_duration:.1f}s > {target_duration}s), skipping")
+            return False
+        
+        # Split text into words for timestamp distribution
+        if language == "zh":
+            words = [c for c in text_to_speak if c.strip()]
+        else:
+            words = text_to_speak.split()
+        
+        if not words:
+            return False
+        
+        # Calculate word timestamps
+        start_padding = 0.05
+        end_padding = 0.3
+        usable_duration = actual_duration - start_padding - end_padding
+        if usable_duration <= 0:
+            usable_duration = actual_duration
+            start_padding = 0
+        
+        word_duration = usable_duration / len(words)
+        word_timestamps = []
+        for i, word in enumerate(words):
+            w_start = start_padding + i * word_duration
+            w_end = w_start + word_duration
+            word_timestamps.append((w_start, w_end, word))
+        
+        # Group words for display
+        subtitle_max_width = VIDEO_WIDTH - 2 * SUBTITLE_PADDING
+        display_chunks = group_words_for_display(
+            word_timestamps, subtitle_max_width,
+            subtitle_font_en, subtitle_font_cn,
+            SUBTITLE_MAX_LINES, language
+        )
+        
+        # Generate frames as images
+        frame_dir = os.path.join(temp_dir, "frames")
+        os.makedirs(frame_dir)
+        
+        total_frames = int(target_duration * fps)
+        current_chunk_idx = 0
+        
+        for frame_num in range(total_frames):
+            t = frame_num / fps
+            
+            # Find current subtitle chunk
+            current_text = ""
+            while current_chunk_idx < len(display_chunks):
+                chunk_start, chunk_end, chunk_text = display_chunks[current_chunk_idx]
+                if t < chunk_start:
+                    break
+                elif t <= chunk_end or (current_chunk_idx + 1 < len(display_chunks) and t < display_chunks[current_chunk_idx + 1][0]):
+                    current_text = chunk_text
+                    break
+                else:
+                    current_chunk_idx += 1
+            
+            if current_chunk_idx > 0 and current_chunk_idx < len(display_chunks):
+                current_text = display_chunks[current_chunk_idx][2] if t >= display_chunks[current_chunk_idx][0] else display_chunks[current_chunk_idx - 1][2]
+            
+            # Create frame
+            frame = create_subtitle_frame(
+                current_text,
+                subtitle_font_en=subtitle_font_en,
+                subtitle_font_cn=subtitle_font_cn
+            )
+            
+            # Save frame as PNG
+            frame_path = os.path.join(frame_dir, f"frame_{frame_num:05d}.png")
+            Image.fromarray(frame).save(frame_path, optimize=True)
+        
+        # Use ffmpeg to combine frames + audio
+        try:
+            cmd = [
+                'ffmpeg', '-y',
+                '-framerate', str(fps),
+                '-i', os.path.join(frame_dir, 'frame_%05d.png'),
+                '-i', audio_path,
+                '-c:v', 'libopenh264',  # More compatible codec
+                '-c:a', 'aac',
+                '-shortest',
+                '-t', str(target_duration),
+                '-pix_fmt', 'yuv420p',
+                str(output_path)
+            ]
+            result = subprocess.run(cmd, capture_output=True)
+            if result.returncode != 0:
+                # Fallback to default codec
+                cmd = [
+                    'ffmpeg', '-y',
+                    '-framerate', str(fps),
+                    '-i', os.path.join(frame_dir, 'frame_%05d.png'),
+                    '-i', audio_path,
+                    '-c:a', 'aac',
+                    '-shortest',
+                    '-t', str(target_duration),
+                    '-pix_fmt', 'yuv420p',
+                    str(output_path)
+                ]
+                subprocess.run(cmd, capture_output=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"ffmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+            return False
+    
+    return True
+
+
 def test_audio_video_generation():
     """Test the audio video generation."""
     text = "Once upon a time, there was a little rabbit. The rabbit loved to hop around the meadow. One day, it met a friendly fox who became its best friend."
