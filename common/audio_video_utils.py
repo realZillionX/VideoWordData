@@ -677,36 +677,50 @@ def create_video_with_audio_subtitles_fast(
             Image.fromarray(frame).save(frame_path, optimize=True)
         
         # Use ffmpeg to combine frames + audio
-        try:
-            cmd = [
-                'ffmpeg', '-y',
-                '-framerate', str(fps),
-                '-i', os.path.join(frame_dir, 'frame_%05d.png'),
-                '-i', audio_path,
-                '-c:v', 'libopenh264',  # More compatible codec
-                '-c:a', 'aac',
-                '-shortest',
-                '-t', str(target_duration),
-                '-pix_fmt', 'yuv420p',
-                str(output_path)
-            ]
-            result = subprocess.run(cmd, capture_output=True)
-            if result.returncode != 0:
-                # Fallback to default codec
+        # Try multiple codecs in order of preference/speed
+        ffmpeg_codecs = [
+            # 1. libx264 with ultrafast preset (best balance)
+            ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23'],
+            # 2. libopenh264 (often available in conda)
+            ['-c:v', 'libopenh264'],
+            # 3. mpeg4 (very old, highly compatible fallback)
+            ['-c:v', 'mpeg4', '-q:v', '5'],
+            # 4. Default ffmpeg choice (last resort)
+            []
+        ]
+        
+        success = False
+        last_error = ""
+        
+        for codec_args in ffmpeg_codecs:
+            try:
                 cmd = [
                     'ffmpeg', '-y',
                     '-framerate', str(fps),
                     '-i', os.path.join(frame_dir, 'frame_%05d.png'),
                     '-i', audio_path,
+                ] + codec_args + [
                     '-c:a', 'aac',
                     '-shortest',
                     '-t', str(target_duration),
                     '-pix_fmt', 'yuv420p',
                     str(output_path)
                 ]
-                subprocess.run(cmd, capture_output=True, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"ffmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+                
+                # Capture both stdout and stderr
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    success = True
+                    break
+                else:
+                    last_error = result.stderr
+            except Exception as e:
+                last_error = str(e)
+                continue
+                
+        if not success:
+            print(f"ffmpeg error (all codecs failed): {last_error}")
             return False
     
     return True
