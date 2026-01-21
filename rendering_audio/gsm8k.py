@@ -171,9 +171,9 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
             continue
         
         # Determine strict word count limit for GSM8K (math text expands 2x-3x when spoken)
-        # Global WPS is 4.5, but for math we treat it as effectively ~2.0
+        # Global WPS is 3.6, but for math we treat it as effectively ~2.0
         # Limit = 10s * 2.0 WPS = 20 words max
-        math_words_limit = 25
+        math_words_limit = 22
         answer_words = len(answer_text.split())
         
         if answer_words > math_words_limit:

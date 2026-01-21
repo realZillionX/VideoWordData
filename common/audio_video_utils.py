@@ -62,7 +62,7 @@ TTS_VOICES = {
 }
 
 # Speaking rates (words/chars per second) - tuned for Piper TTS
-ENGLISH_WPS = 4.5  # Fast speed (0.65 scale) for normal text. GSM8K handles its own stricter limits.
+ENGLISH_WPS = 3.6  # Moderate speed (0.85 scale).
 CHINESE_CPS = 6.0  # Piper TTS Chinese is also faster
 
 
@@ -597,7 +597,7 @@ def create_video_with_audio_subtitles_fast(
         # generate audio sentence by sentence for better alignment
         try:
             piper_voice = get_piper_voice(language)
-            config = SynthesisConfig(length_scale=0.65)
+            config = SynthesisConfig(length_scale=0.85)
             
             # Split sentences
             sentences = split_text_into_sentences(text_to_speak, language)
