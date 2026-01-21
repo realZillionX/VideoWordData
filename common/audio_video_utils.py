@@ -594,61 +594,90 @@ def create_video_with_audio_subtitles_fast(
     with tempfile.TemporaryDirectory() as temp_dir:
         audio_path = os.path.join(temp_dir, "audio.wav")
         
-        # Generate TTS audio
+        # generate audio sentence by sentence for better alignment
         try:
             piper_voice = get_piper_voice(language)
-            # Use length_scale < 1.0 to speak faster (0.75 = 33% faster)
-            # This helps fit more text into 10s and satisfies user preference for fast speech
             config = SynthesisConfig(length_scale=0.65)
             
-            audio_chunks = list(piper_voice.synthesize(text_to_speak, syn_config=config))
+            # Split sentences
+            sentences = split_text_into_sentences(text_to_speak, language)
             
-            if not audio_chunks:
+            full_audio_bytes = bytearray()
+            word_timestamps = []
+            current_time_offset = 0.05  # Start padding
+            
+            sample_rate = 22050
+            sample_width = 2
+            sample_channels = 1
+            
+            for sentence in sentences:
+                if not sentence.strip():
+                    continue
+                    
+                # Generate audio for sentence
+                sent_chunks = list(piper_voice.synthesize(sentence, syn_config=config))
+                if not sent_chunks:
+                    continue
+                    
+                # Get sentence audio properties
+                sent_audio = b''.join(c.audio_int16_bytes for c in sent_chunks)
+                if not full_audio_bytes:
+                    # First chunk determines format
+                    sample_rate = sent_chunks[0].sample_rate
+                    sample_width = sent_chunks[0].sample_width
+                    sample_channels = sent_chunks[0].sample_channels
+                
+                # Append audio (add slight pause between sentences if not first)
+                if full_audio_bytes:
+                    # Add 0.1s silence between sentences
+                    silence_frames = int(sample_rate * 0.1)
+                    silence_bytes = b'\0' * (silence_frames * sample_width * sample_channels)
+                    full_audio_bytes.extend(silence_bytes)
+                    current_time_offset += 0.1
+                
+                full_audio_bytes.extend(sent_audio)
+                
+                # Calculate sentence duration
+                sent_duration = len(sent_audio) / (sample_rate * sample_width * sample_channels)
+                
+                # Distribute words within THIS sentence duration
+                if language == "zh":
+                    sent_words = [c for c in sentence if c.strip()]
+                else:
+                    sent_words = sentence.split()
+                
+                if sent_words:
+                    word_duration = sent_duration / len(sent_words)
+                    for i, word in enumerate(sent_words):
+                        w_start = current_time_offset + i * word_duration
+                        w_end = w_start + word_duration
+                        word_timestamps.append((w_start, w_end, word))
+                
+                current_time_offset += sent_duration
+            
+            if not full_audio_bytes:
                 return False
-            
-            all_audio = b''.join(c.audio_int16_bytes for c in audio_chunks)
-            sample_rate = audio_chunks[0].sample_rate
-            sample_width = audio_chunks[0].sample_width
-            sample_channels = audio_chunks[0].sample_channels
-            
+                
+            # Write final WAV
             with wave.open(audio_path, 'wb') as wav_file:
                 wav_file.setnchannels(sample_channels)
                 wav_file.setsampwidth(sample_width)
                 wav_file.setframerate(sample_rate)
-                wav_file.writeframes(all_audio)
+                wav_file.writeframes(full_audio_bytes)
                 
-            actual_duration = len(all_audio) / (sample_rate * sample_width * sample_channels)
+            actual_duration = len(full_audio_bytes) / (sample_rate * sample_width * sample_channels)
+            
         except Exception as e:
             print(f"Error generating TTS: {e}")
+            import traceback
+            traceback.print_exc()
             return False
-        
+            
         if actual_duration > target_duration + 0.5:
-            print(f"Audio too long ({actual_duration:.1f}s > {target_duration}s), skipping")
-            return False
+             # Just warn, don't skip since we already aggressive filtered
+             print(f"Warning: Audio slightly long ({actual_duration:.1f}s), video will truncate.")
         
-        # Split text into words for timestamp distribution
-        if language == "zh":
-            words = [c for c in text_to_speak if c.strip()]
-        else:
-            words = text_to_speak.split()
-        
-        if not words:
-            return False
-        
-        # Calculate word timestamps
-        start_padding = 0.05
-        end_padding = 0.3
-        usable_duration = actual_duration - start_padding - end_padding
-        if usable_duration <= 0:
-            usable_duration = actual_duration
-            start_padding = 0
-        
-        word_duration = usable_duration / len(words)
-        word_timestamps = []
-        for i, word in enumerate(words):
-            w_start = start_padding + i * word_duration
-            w_end = w_start + word_duration
-            word_timestamps.append((w_start, w_end, word))
+        # Calculate word timestamps (Legacy logic removed, replaced by sentence loop above)
         
         # Group words for display
         subtitle_max_width = VIDEO_WIDTH - 2 * SUBTITLE_PADDING
