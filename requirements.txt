@@ -9,5 +9,5 @@ tqdm
 tiktoken
 
 # Audio video generation (offline TTS)
-TTS  # Coqui TTS - offline, GPU-accelerated
+piper-tts  # Piper TTS - offline, supports Python 3.12
 moviepy

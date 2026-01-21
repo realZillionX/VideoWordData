@@ -132,43 +132,51 @@ def calculate_subtitle_capacity(
     return words_per_line * max_lines
 
 
-# Global TTS model cache (lazy loaded)
-_tts_model = None
-_tts_model_language = None
+# Piper TTS model paths (must be downloaded beforehand)
+# Download from: https://github.com/rhasspy/piper/releases
+# English: en_US-lessac-medium.onnx
+# Chinese: zh_CN-huayan-medium.onnx
+PIPER_MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "piper"
+
+PIPER_MODELS = {
+    "en": "en_US-lessac-medium.onnx",
+    "zh": "zh_CN-huayan-medium.onnx",
+}
+
+# Global piper voice cache
+_piper_voice = None
+_piper_voice_language = None
 
 
-def get_tts_model(language: str = "en"):
+def get_piper_voice(language: str = "en"):
     """
-    Get or initialize the TTS model.
-    Uses Coqui TTS with GPU acceleration.
+    Get or initialize the Piper TTS voice.
     
-    Models used:
-    - English: tts_models/en/ljspeech/tacotron2-DDC (fast, good quality)
-    - Chinese: tts_models/zh-CN/baker/tacotron2-DDC-GST
+    Models must be downloaded beforehand to PIPER_MODEL_DIR.
     """
-    global _tts_model, _tts_model_language
+    global _piper_voice, _piper_voice_language
     
-    # Return cached model if language matches
-    if _tts_model is not None and _tts_model_language == language:
-        return _tts_model
+    # Return cached voice if language matches
+    if _piper_voice is not None and _piper_voice_language == language:
+        return _piper_voice
     
-    from TTS.api import TTS
-    import torch
+    from piper import PiperVoice
     
-    # Select model based on language
-    if language == "zh":
-        model_name = "tts_models/zh-CN/baker/tacotron2-DDC-GST"
-    else:
-        model_name = "tts_models/en/ljspeech/tacotron2-DDC"
+    model_name = PIPER_MODELS.get(language, PIPER_MODELS["en"])
+    model_path = PIPER_MODEL_DIR / model_name
     
-    # Check GPU availability
-    use_gpu = torch.cuda.is_available()
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Piper model not found: {model_path}\n"
+            f"Please download from https://github.com/rhasspy/piper/releases\n"
+            f"and place in {PIPER_MODEL_DIR}"
+        )
     
-    print(f"Loading TTS model: {model_name} (GPU: {use_gpu})")
-    _tts_model = TTS(model_name=model_name, progress_bar=False, gpu=use_gpu)
-    _tts_model_language = language
+    print(f"Loading Piper TTS model: {model_path}")
+    _piper_voice = PiperVoice.load(str(model_path))
+    _piper_voice_language = language
     
-    return _tts_model
+    return _piper_voice
 
 
 def generate_tts_with_word_timestamps_sync(
@@ -178,17 +186,26 @@ def generate_tts_with_word_timestamps_sync(
     language: str = "en"
 ) -> Tuple[List[Tuple[float, float, str]], float]:
     """
-    Generate TTS audio using Coqui TTS (offline, GPU-accelerated).
+    Generate TTS audio using Piper TTS (offline, CPU/GPU).
     
     Returns:
         Tuple of (word_timestamps list, actual duration)
         Each timestamp is (start_time, end_time, word)
     """
+    import wave
+    
     try:
-        tts = get_tts_model(language)
+        piper_voice = get_piper_voice(language)
         
-        # Generate audio file
-        tts.tts_to_file(text=text, file_path=output_audio_path)
+        # Generate audio - piper outputs WAV
+        wav_path = output_audio_path.replace('.mp3', '.wav')
+        
+        with wave.open(wav_path, 'wb') as wav_file:
+            piper_voice.synthesize(text, wav_file)
+        
+        # Convert to MP3 if needed (moviepy can handle WAV directly)
+        # For simplicity, we'll use WAV and update the path
+        output_audio_path = wav_path
         
     except Exception as e:
         print(f"Error generating TTS: {e}")
@@ -217,7 +234,7 @@ def generate_tts_with_word_timestamps_sync(
     # Distribute timestamps evenly across audio duration
     # Leave small padding at start and larger padding at end
     start_padding = 0.05
-    end_padding = 0.5  # Adjusted for Coqui TTS
+    end_padding = 0.3  # Adjusted for Piper TTS
     usable_duration = actual_duration - start_padding - end_padding
     
     if usable_duration <= 0:
