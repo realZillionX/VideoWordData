@@ -59,9 +59,9 @@ TTS_VOICES = {
     "zh-male": "zh-CN-YunxiNeural",
 }
 
-# Speaking rates (words/chars per second)
-ENGLISH_WPS = 2.5  # English: ~2.5 words per second
-CHINESE_CPS = 4.0  # Chinese: ~4 characters per second
+# Speaking rates (words/chars per second) - tuned for Piper TTS
+ENGLISH_WPS = 3.5  # Piper TTS speaks faster (~3.5 words per second)
+CHINESE_CPS = 5.0  # Piper TTS Chinese is also faster
 
 
 def get_tts_voice(language: str = "en", gender: str = "female") -> str:
