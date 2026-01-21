@@ -11,3 +11,7 @@ run_log.txt
 
 # System
 .DS_Store
+
+# Models
+models/**/*.onnx
+models/**/*.onnx.json (LANGUAGE_UNSPECIFIED)
