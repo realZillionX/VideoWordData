@@ -40,7 +40,7 @@ from .video_utils import (
 )
 
 # Audio video specific settings
-AUDIO_FPS = 24  # Standard video FPS
+AUDIO_FPS = 19.3  # Adjusted to match user requirement (193 frames / 10s)
 AUDIO_VIDEO_DURATION = 10.0  # Fixed 10-second video duration
 
 # Subtitle settings - WHITE background with BLACK text
@@ -713,7 +713,6 @@ def create_video_with_audio_subtitles_fast(
                     '-i', audio_path,
                 ] + codec_args + [
                     '-c:a', 'aac',
-                    '-shortest',
                     '-t', str(target_duration),
                     '-pix_fmt', 'yuv420p',
                     str(output_path)
