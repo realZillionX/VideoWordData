@@ -200,24 +200,41 @@ def generate_tts_with_word_timestamps_sync(
         # Generate audio - piper outputs WAV
         wav_path = output_audio_path.replace('.mp3', '.wav')
         
-        with wave.open(wav_path, 'wb') as wav_file:
-            piper_voice.synthesize(text, wav_file)
+        # Piper synthesize yields AudioChunk objects
+        audio_chunks = list(piper_voice.synthesize(text))
         
-        # Convert to MP3 if needed (moviepy can handle WAV directly)
-        # For simplicity, we'll use WAV and update the path
-        output_audio_path = wav_path
+        if not audio_chunks:
+            print("No audio chunks generated")
+            return [], 0
+        
+        # Join all audio data
+        all_audio = b''.join(c.audio_int16_bytes for c in audio_chunks)
+        sample_rate = audio_chunks[0].sample_rate
+        sample_width = audio_chunks[0].sample_width
+        sample_channels = audio_chunks[0].sample_channels
+        
+        # Write WAV file with proper configuration
+        with wave.open(wav_path, 'wb') as wav_file:
+            wav_file.setnchannels(sample_channels)
+            wav_file.setsampwidth(sample_width)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(all_audio)
+        
+        # wav_path is now set and will be used below
         
     except Exception as e:
         print(f"Error generating TTS: {e}")
+        import traceback
+        traceback.print_exc()
         return [], 0
     
-    # Get actual audio duration
+    # Get actual audio duration (use wav_path, not output_audio_path)
     try:
-        audio_clip = AudioFileClip(output_audio_path)
+        audio_clip = AudioFileClip(wav_path)
         actual_duration = audio_clip.duration
         audio_clip.close()
     except Exception as e:
-        print(f"Error getting audio duration: {e}")
+        print(f"Error loading audio: {e}")
         return [], 0
     
     # Split text into words and distribute timestamps evenly
@@ -417,7 +434,7 @@ def create_video_with_audio_subtitles(
     
     # Create temp directory
     with tempfile.TemporaryDirectory() as temp_dir:
-        audio_path = os.path.join(temp_dir, "audio.mp3")
+        audio_path = os.path.join(temp_dir, "audio.wav")  # Piper generates WAV
         
         try:
             word_timestamps, actual_duration = generate_tts_with_word_timestamps_sync(
