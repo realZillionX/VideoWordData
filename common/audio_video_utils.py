@@ -98,12 +98,23 @@ def find_sentences_within_duration(
     max_duration: float,
     language: str = "en"
 ) -> int:
-    """Find how many sentences can fit within the given duration."""
+    """Find how many sentences can fit within the given duration.
+    
+    IMPORTANT: This accounts for 0.1s silence between sentences,
+    matching the actual audio generation logic.
+    """
+    SENTENCE_SILENCE = 0.1  # Must match the value in create_video_with_audio_subtitles_fast
+    
     total_duration = 0.0
     count = 0
     
-    for s in sentences:
+    for i, s in enumerate(sentences):
+        # Add silence BEFORE this sentence (if not first)
+        if i > 0:
+            total_duration += SENTENCE_SILENCE
+            
         duration = estimate_audio_duration(s, language)
+        
         if total_duration + duration <= max_duration:
             total_duration += duration
             count += 1
