@@ -720,8 +720,11 @@ def create_video_with_audio_subtitles_fast(
         # Use ffmpeg to combine frames + audio via stdin PIPE (Zero-IO optimization)
         # This avoids writing thousands of temp images to disk, which is the bottleneck.
         # Try multiple codecs in order of preference/speed
+        # Try multiple codecs in order of preference/speed
         ffmpeg_codecs = [
-            # 1. libx264 with ultrafast preset (Standard choice, fastest if GPL available)
+            # 0. NVIDIA NVENC (GPU Acceleration) - First priority if available
+            ['-c:v', 'h264_nvenc', '-preset', 'p1', '-rc', 'vbr', '-cq', '24', '-b:v', '2M'],
+            # 1. libx264 with ultrafast preset (Standard choice, fastest CPU)
             ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23'],
             # 2. libopenh264 (Cisco license, often in conda)
             ['-c:v', 'libopenh264', '-b:v', '2M'],
