@@ -160,6 +160,9 @@ PIPER_MODELS = {
 _piper_voice = None
 _piper_voice_language = None
 
+# Global ffmpeg path cache (avoids repeated lookups and console spam)
+_ffmpeg_exe = None
+
 
 def get_piper_voice(language: str = "en"):
     """
@@ -580,16 +583,18 @@ def create_video_with_audio_subtitles_fast(
     import wave
     import shutil
     
-    # Try to find ffmpeg: check system PATH first, then imageio-ffmpeg
-    ffmpeg_exe = shutil.which('ffmpeg')
-    if not ffmpeg_exe:
-        try:
-            import imageio_ffmpeg
-            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-            print(f"Using imageio-ffmpeg binary: {ffmpeg_exe}")
-        except ImportError:
-            print("ffmpeg not found in PATH and imageio-ffmpeg not installed")
-            return False
+    # Use global cached ffmpeg path
+    global _ffmpeg_exe
+    if _ffmpeg_exe is None:
+        _ffmpeg_exe = shutil.which('ffmpeg')
+        if not _ffmpeg_exe:
+            try:
+                import imageio_ffmpeg
+                _ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            except ImportError:
+                print("ffmpeg not found in PATH and imageio-ffmpeg not installed")
+                return False
+    ffmpeg_exe = _ffmpeg_exe
             
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
