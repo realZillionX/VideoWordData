@@ -13,8 +13,20 @@ Dependencies:
     pip install edge-tts moviepy
 """
 
-import asyncio
 import os
+
+# CRITICAL PERFORMANCE OPTIMIZATION:
+# Force widely-used numerical libraries to use a single thread.
+# In a multi-process environment (like our 32-core job), having each worker
+# spawn multiple threads causes massive CPU contention and thrashing.
+# We want: 1 Process = 1 Core = 1 Thread.
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
+import asyncio
 import re
 import tempfile
 from pathlib import Path
@@ -189,7 +201,9 @@ def get_piper_voice(language: str = "en"):
         )
     
     print(f"Loading Piper TTS model: {model_path}")
-    _piper_voice = PiperVoice.load(str(model_path))
+    # Force CPU execution (use_cuda=False) to avoid GPU contention/serialization 
+    # when running massive parallel processes (e.g. 32 workers).
+    _piper_voice = PiperVoice.load(str(model_path), use_cuda=False)
     _piper_voice_language = language
     
     return _piper_voice
@@ -703,88 +717,98 @@ def create_video_with_audio_subtitles_fast(
             SUBTITLE_MAX_LINES, language
         )
         
-        # Generate frames as images
-        frame_dir = os.path.join(temp_dir, "frames")
-        os.makedirs(frame_dir)
-        
-        total_frames = int(target_duration * fps)
-        current_chunk_idx = 0
-        
-        for frame_num in range(total_frames):
-            t = frame_num / fps
-            
-            # Find current subtitle chunk
-            current_text = ""
-            while current_chunk_idx < len(display_chunks):
-                chunk_start, chunk_end, chunk_text = display_chunks[current_chunk_idx]
-                if t < chunk_start:
-                    break
-                elif t <= chunk_end or (current_chunk_idx + 1 < len(display_chunks) and t < display_chunks[current_chunk_idx + 1][0]):
-                    current_text = chunk_text
-                    break
-                else:
-                    current_chunk_idx += 1
-            
-            if current_chunk_idx > 0 and current_chunk_idx < len(display_chunks):
-                current_text = display_chunks[current_chunk_idx][2] if t >= display_chunks[current_chunk_idx][0] else display_chunks[current_chunk_idx - 1][2]
-            
-            # Create frame
-            frame = create_subtitle_frame(
-                current_text,
-                subtitle_font_en=subtitle_font_en,
-                subtitle_font_cn=subtitle_font_cn
-            )
-            
-            # Save frame as PNG
-            frame_path = os.path.join(frame_dir, f"frame_{frame_num:05d}.png")
-            Image.fromarray(frame).save(frame_path, optimize=True)
-        
-        # Use ffmpeg to combine frames + audio
-        # Try multiple codecs in order of preference/speed
-        ffmpeg_codecs = [
-            # 1. libx264 with ultrafast preset (best balance)
-            ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23'],
-            # 2. libopenh264 (often available in conda)
-            ['-c:v', 'libopenh264'],
-            # 3. mpeg4 (very old, highly compatible fallback)
-            ['-c:v', 'mpeg4', '-q:v', '5'],
-            # 4. Default ffmpeg choice (last resort)
-            []
+        # Use ffmpeg to combine frames + audio via stdin PIPE (Zero-IO optimization)
+        # This avoids writing thousands of temp images to disk, which is the bottleneck.
+        cmd = [
+            ffmpeg_exe, '-y',
+            '-f', 'rawvideo',
+            '-vcodec', 'rawvideo',
+            '-s', f'{VIDEO_WIDTH}x{VIDEO_HEIGHT}',
+            '-pix_fmt', 'rgb24',
+            '-r', str(fps),
+            '-i', '-',  # Read from stdin
+            '-i', audio_path,
+            '-c:v', 'libopenh264',
+            '-b:v', '2M', # Set moderate bitrate for openh264
+            '-c:a', 'aac',
+            '-pix_fmt', 'yuv420p',
+            '-threads', '1', # Prevent encoder thread contention
+            str(output_path)
         ]
         
-        success = False
-        last_error = ""
+        stderr_file = tempfile.TemporaryFile()
         
-        for codec_args in ffmpeg_codecs:
-            try:
-                cmd = [
-                    ffmpeg_exe, '-y',
-                    '-framerate', str(fps),
-                    '-i', os.path.join(frame_dir, 'frame_%05d.png'),
-                    '-i', audio_path,
-                ] + codec_args + [
-                    '-c:a', 'aac',
-                    '-t', str(target_duration),
-                    '-pix_fmt', 'yuv420p',
-                    str(output_path)
-                ]
+        try:
+            # Start ffmpeg process
+            # Use tempfile for stderr to avoid deadlock/buffer issues while streaming stdin
+            process = subprocess.Popen(
+                cmd, 
+                stdin=subprocess.PIPE, 
+                stdout=subprocess.DEVNULL, 
+                stderr=stderr_file
+            )
+            
+            total_frames = int(target_duration * fps)
+            current_chunk_idx = 0
+            
+            for frame_num in range(total_frames):
+                t = frame_num / fps
                 
-                # Capture both stdout and stderr
-                result = subprocess.run(cmd, capture_output=True, text=True)
+                # Find current subtitle chunk
+                current_text = ""
+                while current_chunk_idx < len(display_chunks):
+                    chunk_start, chunk_end, chunk_text = display_chunks[current_chunk_idx]
+                    if t < chunk_start:
+                        break
+                    elif t <= chunk_end or (current_chunk_idx + 1 < len(display_chunks) and t < display_chunks[current_chunk_idx + 1][0]):
+                        current_text = chunk_text
+                        break
+                    else:
+                        current_chunk_idx += 1
                 
-                if result.returncode == 0:
-                    success = True
-                    break
-                else:
-                    last_error = result.stderr
-            except Exception as e:
-                last_error = str(e)
-                continue
+                if current_chunk_idx > 0 and current_chunk_idx < len(display_chunks):
+                     # Handle transition/gap logic (preserve existing behavior)
+                     if t >= display_chunks[current_chunk_idx][0]:
+                         current_text = display_chunks[current_chunk_idx][2]
+                     else:
+                         current_text = display_chunks[current_chunk_idx - 1][2]
                 
-        if not success:
-            print(f"ffmpeg error (all codecs failed): {last_error}")
+                # Create frame (returns numpy array RGB)
+                frame = create_subtitle_frame(
+                    current_text,
+                    subtitle_font_en=subtitle_font_en,
+                    subtitle_font_cn=subtitle_font_cn
+                )
+                
+                # Write raw frame bytes to pipe
+                process.stdin.write(frame.tobytes())
+            
+            # Close input stream to signal EOF to ffmpeg
+            process.stdin.close()
+            
+            # Wait for finish
+            process.wait()
+            
+            if process.returncode != 0:
+                stderr_file.seek(0)
+                err_output = stderr_file.read().decode('utf-8', errors='ignore')
+                print(f"ffmpeg error: {err_output}")
+                return False
+                
+        except Exception as e:
+            print(f"Error in video generation pipe: {e}")
+            if 'process' in locals() and process.poll() is None:
+                process.kill()
+            if 'stderr_file' in locals():
+                stderr_file.seek(0)
+                print(f"Stderr: {stderr_file.read().decode('utf-8', errors='ignore')}")
+            import traceback
+            traceback.print_exc()
             return False
-    
+        finally:
+            if 'stderr_file' in locals():
+                stderr_file.close()
+            
     return True
 
 

@@ -20,13 +20,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from datasets import load_dataset
-from tqdm import tqdm
-import argparse
-from multiprocessing import Pool, cpu_count
-import os
-import tiktoken
-
+# Import common utils FIRST to ensure OMP_NUM_THREADS env vars are set 
+# and ffmpeg/piper configurations are loaded before heavy libraries (numpy/datasets) initialize.
 from common.audio_video_utils import (
     create_video_with_audio_subtitles_fast as create_video_with_audio_subtitles,
     estimate_audio_duration,
@@ -35,6 +30,13 @@ from common.audio_video_utils import (
     can_fit_in_duration,
     AUDIO_VIDEO_DURATION
 )
+
+from datasets import load_dataset
+from tqdm import tqdm
+import argparse
+from multiprocessing import Pool, cpu_count
+import os
+import tiktoken
 
 # Configuration
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
