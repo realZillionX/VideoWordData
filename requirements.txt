@@ -8,6 +8,6 @@ pillow
 tqdm
 tiktoken
 
-# Audio video generation (new)
-edge-tts
+# Audio video generation (offline TTS)
+TTS  # Coqui TTS - offline, GPU-accelerated
 moviepy

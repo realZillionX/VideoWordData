@@ -132,34 +132,67 @@ def calculate_subtitle_capacity(
     return words_per_line * max_lines
 
 
-async def generate_tts_with_word_timestamps(
+# Global TTS model cache (lazy loaded)
+_tts_model = None
+_tts_model_language = None
+
+
+def get_tts_model(language: str = "en"):
+    """
+    Get or initialize the TTS model.
+    Uses Coqui TTS with GPU acceleration.
+    
+    Models used:
+    - English: tts_models/en/ljspeech/tacotron2-DDC (fast, good quality)
+    - Chinese: tts_models/zh-CN/baker/tacotron2-DDC-GST
+    """
+    global _tts_model, _tts_model_language
+    
+    # Return cached model if language matches
+    if _tts_model is not None and _tts_model_language == language:
+        return _tts_model
+    
+    from TTS.api import TTS
+    import torch
+    
+    # Select model based on language
+    if language == "zh":
+        model_name = "tts_models/zh-CN/baker/tacotron2-DDC-GST"
+    else:
+        model_name = "tts_models/en/ljspeech/tacotron2-DDC"
+    
+    # Check GPU availability
+    use_gpu = torch.cuda.is_available()
+    
+    print(f"Loading TTS model: {model_name} (GPU: {use_gpu})")
+    _tts_model = TTS(model_name=model_name, progress_bar=False, gpu=use_gpu)
+    _tts_model_language = language
+    
+    return _tts_model
+
+
+def generate_tts_with_word_timestamps_sync(
     text: str,
     output_audio_path: str,
     voice: str = None,
     language: str = "en"
 ) -> Tuple[List[Tuple[float, float, str]], float]:
     """
-    Generate TTS audio and return word-level timestamps.
-    
-    Note: edge-tts 7.x only provides SentenceBoundary, not WordBoundary.
-    We generate audio first, then distribute word timestamps evenly.
+    Generate TTS audio using Coqui TTS (offline, GPU-accelerated).
     
     Returns:
         Tuple of (word_timestamps list, actual duration)
         Each timestamp is (start_time, end_time, word)
     """
-    import edge_tts
-    
-    if voice is None:
-        voice = get_tts_voice(language)
-    
-    communicate = edge_tts.Communicate(text, voice)
-    
-    # Generate audio file
-    with open(output_audio_path, "wb") as audio_file:
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                audio_file.write(chunk["data"])
+    try:
+        tts = get_tts_model(language)
+        
+        # Generate audio file
+        tts.tts_to_file(text=text, file_path=output_audio_path)
+        
+    except Exception as e:
+        print(f"Error generating TTS: {e}")
+        return [], 0
     
     # Get actual audio duration
     try:
@@ -182,9 +215,9 @@ async def generate_tts_with_word_timestamps(
         return [], actual_duration
     
     # Distribute timestamps evenly across audio duration
-    # Leave small padding at start and larger padding at end (to compensate for TTS trailing silence)
+    # Leave small padding at start and larger padding at end
     start_padding = 0.05
-    end_padding = 0.8  # Increased to fix visual lag (user reported video slower than audio)
+    end_padding = 0.5  # Adjusted for Coqui TTS
     usable_duration = actual_duration - start_padding - end_padding
     
     if usable_duration <= 0:
@@ -200,18 +233,6 @@ async def generate_tts_with_word_timestamps(
         word_timestamps.append((w_start, w_end, word))
     
     return word_timestamps, actual_duration
-
-
-def generate_tts_with_word_timestamps_sync(
-    text: str,
-    output_audio_path: str,
-    voice: str = None,
-    language: str = "en"
-) -> Tuple[List[Tuple[float, float, str]], float]:
-    """Synchronous wrapper."""
-    return asyncio.run(generate_tts_with_word_timestamps(
-        text, output_audio_path, voice, language
-    ))
 
 
 def group_words_for_display(
