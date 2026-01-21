@@ -167,10 +167,18 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
         if len(question_text.strip()) < 5 or len(answer_text.strip()) < 5:
             continue
         
-        # Check if answer fits in 10 seconds
-        if not can_fit_in_duration(answer_text, AUDIO_VIDEO_DURATION, language):
-            skipped_too_long += 1
+        if len(question_text.strip()) < 5 or len(answer_text.strip()) < 5:
             continue
+        
+        # Determine strict word count limit for GSM8K (math text expands 2x-3x when spoken)
+        # Global WPS is 4.5, but for math we treat it as effectively ~2.0
+        # Limit = 10s * 2.0 WPS = 20 words max
+        math_words_limit = 25
+        answer_words = len(answer_text.split())
+        
+        if answer_words > math_words_limit:
+             skipped_too_long += 1
+             continue
         
         video_filename = f"gsm8k_audio_{start_idx + len(all_samples):06d}.mp4"
         video_path = VIDEO_DIR / video_filename

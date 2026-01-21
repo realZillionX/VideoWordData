@@ -62,8 +62,8 @@ TTS_VOICES = {
 }
 
 # Speaking rates (words/chars per second) - tuned for Piper TTS
-ENGLISH_WPS = 2.2  # fast speech (0.65) but VERY conservative for math (numbers expand x3-x6)
-CHINESE_CPS = 5.0  # Piper TTS Chinese is also faster
+ENGLISH_WPS = 4.5  # Fast speed (0.65 scale) for normal text. GSM8K handles its own stricter limits.
+CHINESE_CPS = 6.0  # Piper TTS Chinese is also faster
 
 
 def get_tts_voice(language: str = "en", gender: str = "female") -> str:
