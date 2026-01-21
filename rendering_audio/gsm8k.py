@@ -151,15 +151,16 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
     if start_idx > 0:
         dataset = dataset.select(range(start_idx, len(dataset)))
     
-    if num_samples:
-        dataset = dataset.select(range(min(num_samples, len(dataset))))
-    
     language = "en"
     all_samples = []
     skipped_too_long = 0
     
     print("Filtering samples that fit in 10 seconds...")
     for idx, sample in enumerate(tqdm(dataset, desc="Analyzing samples")):
+        # Oversample candidates (5x) because some might fail generation step due to math expansion
+        if num_samples and len(all_samples) >= num_samples * 5:
+            break
+            
         question_text = add_sentence_newlines(sample.get("question", ""))
         answer_text = clean_gsm8k_answer(sample.get("answer", ""))
         
@@ -171,12 +172,15 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
             skipped_too_long += 1
             continue
         
-        video_filename = f"gsm8k_audio_{start_idx + idx:06d}.mp4"
+        video_filename = f"gsm8k_audio_{start_idx + len(all_samples):06d}.mp4"
         video_path = VIDEO_DIR / video_filename
         
         all_samples.append((question_text, answer_text, video_path, language))
     
-    print(f"Found {len(all_samples)} valid samples (skipped {skipped_too_long} too long)")
+    print(f"Found {len(all_samples)} valid candidates (skipped {skipped_too_long} too long)")
+    
+    # Process candidates
+    processed_count = 0
     print(f"Processing with {num_workers} workers...")
     
     with Pool(processes=num_workers) as pool:
@@ -185,8 +189,11 @@ def main(base_dir=None, num_samples=None, start_idx=0, num_workers=None):
                 if entry:
                     jsonl_file.write(json.dumps(entry, ensure_ascii=False) + '\n')
                     jsonl_file.flush()
-    
-    print(f"Processed {len(all_samples)} videos.")
+                    processed_count += 1
+                    if num_samples and processed_count >= num_samples:
+                        break
+                        
+    print(f"Processed {processed_count} videos.")
     print(f"Output directory: {DATASET_DIR}")
 
 

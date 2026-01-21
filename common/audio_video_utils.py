@@ -22,6 +22,8 @@ from typing import List, Tuple, Optional
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from piper import PiperVoice
+from piper.config import SynthesisConfig
 
 # MoviePy 2.x compatibility
 try:
@@ -60,7 +62,7 @@ TTS_VOICES = {
 }
 
 # Speaking rates (words/chars per second) - tuned for Piper TTS
-ENGLISH_WPS = 3.5  # Piper TTS speaks faster (~3.5 words per second)
+ENGLISH_WPS = 2.2  # fast speech (0.65) but VERY conservative for math (numbers expand x3-x6)
 CHINESE_CPS = 5.0  # Piper TTS Chinese is also faster
 
 
@@ -595,7 +597,11 @@ def create_video_with_audio_subtitles_fast(
         # Generate TTS audio
         try:
             piper_voice = get_piper_voice(language)
-            audio_chunks = list(piper_voice.synthesize(text_to_speak))
+            # Use length_scale < 1.0 to speak faster (0.75 = 33% faster)
+            # This helps fit more text into 10s and satisfies user preference for fast speech
+            config = SynthesisConfig(length_scale=0.65)
+            
+            audio_chunks = list(piper_voice.synthesize(text_to_speak, syn_config=config))
             
             if not audio_chunks:
                 return False
@@ -611,7 +617,7 @@ def create_video_with_audio_subtitles_fast(
                 wav_file.setframerate(sample_rate)
                 wav_file.writeframes(all_audio)
                 
-            actual_duration = len(all_audio) / (sample_rate * sample_width)
+            actual_duration = len(all_audio) / (sample_rate * sample_width * sample_channels)
         except Exception as e:
             print(f"Error generating TTS: {e}")
             return False
