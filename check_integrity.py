@@ -5,8 +5,20 @@ import shutil
 from pathlib import Path
 from tqdm import tqdm
 
-def clean_jsonl(jsonl_path, dry_run=False):
+def parse_size(size_str):
+    """Parse size string like 100k, 1M, 1024"""
+    size_str = size_str.lower()
+    if size_str.endswith('k'):
+        return int(float(size_str[:-1]) * 1024)
+    elif size_str.endswith('m'):
+        return int(float(size_str[:-1]) * 1024 * 1024)
+    else:
+        return int(size_str)
+
+def clean_jsonl(jsonl_path, min_size_bytes=1024, dry_run=False):
     print(f"\nChecking integrity of: {jsonl_path}")
+    print(f"Filter: video size must be > {min_size_bytes} bytes")
+    
     valid_lines = []
     removed_count = 0
     total_count = 0
@@ -24,8 +36,8 @@ def clean_jsonl(jsonl_path, dry_run=False):
                 
                 is_valid = False
                 if video_path and os.path.exists(video_path):
-                    # Check if file is essentially empty/corruped (e.g. < 1KB)
-                    if os.path.getsize(video_path) > 1024:
+                    # Check if file is large enough
+                    if os.path.getsize(video_path) > min_size_bytes:
                         is_valid = True
                 
                 if is_valid:
@@ -38,7 +50,7 @@ def clean_jsonl(jsonl_path, dry_run=False):
     # Report results
     print(f"Total entries: {total_count}")
     print(f"Valid entries: {len(valid_lines)}")
-    print(f"Invalid/Missing references: {removed_count}")
+    print(f"Invalid/Small references: {removed_count}")
     
     if removed_count > 0:
         if dry_run:
@@ -60,8 +72,10 @@ def main():
     parser = argparse.ArgumentParser(description="Check and clean JSONL dataset integrity")
     parser.add_argument("--dir", type=str, default=".", help="Root directory to search for jsonl files")
     parser.add_argument("--dry-run", action="store_true", help="Scan without modifying files")
+    parser.add_argument("--min-size", type=str, default="1k", help="Minimum video file size (e.g. 1k, 100k, 1M). Files smaller than this are removed.")
     args = parser.parse_args()
     
+    min_size = parse_size(args.min_size)
     root_dir = Path(args.dir)
     jsonl_files = list(root_dir.glob("**/*.jsonl"))
     
@@ -72,7 +86,7 @@ def main():
     print(f"Found {len(jsonl_files)} JSONL files to check...")
     
     for f in jsonl_files:
-        clean_jsonl(f, dry_run=args.dry_run)
+        clean_jsonl(f, min_size_bytes=min_size, dry_run=args.dry_run)
 
 if __name__ == "__main__":
     main()
