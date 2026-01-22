@@ -826,12 +826,24 @@ def create_video_with_audio_subtitles_fast(
                 else:
                     stderr_file.seek(0)
                     last_error = stderr_file.read().decode('utf-8', errors='ignore')
+                    # Cleanup failed attempt to ensure no partial files
+                    if os.path.exists(str(output_path)):
+                        try:
+                            os.remove(str(output_path))
+                        except Exception as e:
+                            print(f"Warning: failed to remove partial file {output_path}: {e}")
                     # Continue to next codec
                     
             except Exception as e:
                 last_error = str(e)
                 if 'process' in locals() and process is not None and process.poll() is None:
                     process.kill()
+                # Cleanup on exception
+                if os.path.exists(str(output_path)):
+                    try:
+                        os.remove(str(output_path))
+                    except:
+                        pass
                 import traceback
                 traceback.print_exc()
             finally:
